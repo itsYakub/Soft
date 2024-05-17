@@ -1,8 +1,57 @@
-#include "SDL_pixels.h"
-#include "SDL_version.h"
-#ifndef SOFT_IMPLEMENTATION
+// ---------------------------------------------------------------------------------
+// Soft - Real-Time CPU Renderer
+// ---------------------------------------------------------------------------------
+// Author: https://github.com/itsYakub
+// ---------------------------------------------------------------------------------
+// Version history:
+// - Version 1.0 (Current):
+//      > Release date: 
+// ---------------------------------------------------------------------------------
+// Macro Definitions:
+// - SOFT_DISABLE_VERBOSITY - Disables logging.
+//      Add this macro if you want to get rid of the info / warning / error logging.
+// ---------------------------------------------------------------------------------
+// Sections:
+// - SOFT_INCLUDES;
+// - SOFT_INTERNAL_MACROS;
+// - SOFT_INTERNAL;
+// - SOFT_API_FUNC_WINDOW;
+// - SOFT_API_FUNC_EVENTS;
+// - SOFT_API_FUNC_INPUT;
+// - SOFT_API_FUNC_RENDER;
+// - SOFT_API_FUNC_SHAPES;
+// - SOFT_API_FUNC_LOGGING;
+// - SOFT_API_FUNC_TEXT;
+// - SOFT_FUNC_COLOR
+// ---------------------------------------------------------------------------------
+// External Dependencies:
+// - SDL2: https://github.com/libsdl-org/SDL.git
+// ---------------------------------------------------------------------------------
+// LICENCE:
+// Copyright (c) 2024 Jakub Oleksiak <yakubofficialmail@gmail.com>
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+// OR OTHER DEALINGS IN THE SOFTWARE.
+// ---------------------------------------------------------------------------------
 
 // ------------------------------------------------------
+#include "SDL_keycode.h"
+#include "SDL_scancode.h"
 #pragma region SOFT_INCLUDES
 // ------------------------------------------------------
 
@@ -37,6 +86,8 @@
 #include "SDL_video.h"
 #include "SDL_blendmode.h"
 #include "SDL_render.h"
+#include "SDL_pixels.h"
+#include "SDL_version.h"
 
 // ------------------------------------------------------
 #pragma endregion
@@ -47,6 +98,8 @@
 // ------------------------------------------------------
 
 #define SOFT_CHARBUF_SIZE_MAX 256
+#define SOFT_KEYCODE_COUNT_TOTAL 128
+#define SOFT_MOUSEBUTTON_COUNT_TOTAL 3
 
 // Keyword definitions
 #define internal static
@@ -70,6 +123,8 @@ struct {
     // CORE.Window: Window state
     struct {
         SDL_Window* window;
+
+        softConfigFlags config_flags;
 
         char* title;
 
@@ -100,6 +155,9 @@ struct {
     struct {
         // CORE.Input.Mouse: Mouse state
         struct {
+            bool mouse_button_pressed_current[SOFT_MOUSEBUTTON_COUNT_TOTAL];
+            bool mouse_button_pressed_previous[SOFT_MOUSEBUTTON_COUNT_TOTAL];
+
             iVec2 position_current;
             iVec2 position_previous;
             iVec2 wheel_move;
@@ -108,16 +166,22 @@ struct {
             iVec2 scale;
         } Mouse;
 
+        // CORE.Input.Keyboard: Keyboard state
+        struct {
+            softKeyCode exit_key;
+            bool key_pressed_current[SOFT_KEYCODE_COUNT_TOTAL];
+            bool key_pressed_previous[SOFT_KEYCODE_COUNT_TOTAL];
+        } Keyboard;
+
     } Input;
 
 } CORE;
 
-internal void softSetPixel(int x, int y, Pixel pixel) {
+internal void softSetPixel(int x, int y, Color color) {
     if(!CORE.Render.data_valid) {
         softLogError("Pixel data not valid. Returning...");
         return;
     }
-
 
     if(x < 0 || x >= CORE.Window.screen_size.x) { 
         return; 
@@ -127,11 +191,120 @@ internal void softSetPixel(int x, int y, Pixel pixel) {
         return; 
     }
 
-    CORE.Render.data[y * CORE.Window.display_size.x + x] = pixel;
+    CORE.Render.data[y * CORE.Window.display_size.x + x] = softColorToPixel(color);
+}
+
+internal softKeyCode keycode_to_scancode[] = {
+    KEY_NULL,
+    
+    0,
+    0,
+    0,
+
+    KEY_A,
+    KEY_B,
+    KEY_C,
+    KEY_D,
+    KEY_E,
+    KEY_F,
+    KEY_G,
+    KEY_H,
+    KEY_I,
+    KEY_J,
+    KEY_K,
+    KEY_L,
+    KEY_M,
+    KEY_N,
+    KEY_O,
+    KEY_P,
+    KEY_Q,
+    KEY_R,
+    KEY_S,
+    KEY_T,
+    KEY_U,
+    KEY_V,
+    KEY_W,
+    KEY_X,
+    KEY_Y,
+    KEY_Z,
+
+    KEY_ONE, 
+    KEY_TWO, 
+    KEY_THREE, 
+    KEY_FOUR, 
+    KEY_FIVE, 
+    KEY_SIX, 
+    KEY_SEVEN, 
+    KEY_EIGHT, 
+    KEY_NINE, 
+    KEY_ZERO, 
+
+    0, // SDL_SCANCODE_RETURN
+
+    KEY_ESCAPE,
+    KEY_BACKSPACE,
+    KEY_TAB,
+    KEY_SPACE,
+
+    KEY_MINUS,
+    KEY_EQUALS,
+    KEY_LSQB,
+    KEY_RSQB,
+    KEY_BSLASH,
+
+    0, // SDL_SCANCODE_NONUSHASH
+
+    KEY_SEMI,
+    KEY_APOS,
+    KEY_GRAVE,
+    KEY_COMMA,
+    KEY_PERIOD,
+    KEY_SLASH,
+
+    0, // SDL_SCANCODE_CAPSLOCK
+    0, // SDL_SCANCODE_F1
+    0, // SDL_SCANCODE_F2
+    0, // SDL_SCANCODE_F3
+    0, // SDL_SCANCODE_F4
+    0, // SDL_SCANCODE_F5
+    0, // SDL_SCANCODE_F6
+    0, // SDL_SCANCODE_F7
+    0, // SDL_SCANCODE_F8
+    0, // SDL_SCANCODE_F9
+    0, // SDL_SCANCODE_F10
+    0, // SDL_SCANCODE_F11
+    0, // SDL_SCANCODE_F12
+    0, // SDL_SCANCODE_PRINTSCREEN
+    0, // SDL_SCANCODE_SCROLLLOCK
+    0, // SDL_SCANCODE_PAUSE
+    0, // SDL_SCANCODE_INSERT
+    0, // SDL_SCANCODE_HOME
+    0, // SDL_SCANCODE_PAGEUP
+
+    KEY_DEL,
+
+    0, // SDL_SCANCODE_END
+    0, // SDL_SCANCODE_PAGEDOWN
+    0, // SDL_SCANCODE_RIGHT
+    0, // SDL_SCANCODE_LEFT
+    0, // SDL_SCANCODE_DOWN
+    0, // SDL_SCANCODE_UP
+};
+
+internal softKeyCode SDLScancodeToSoftKeyCode(SDL_Scancode code) {
+    if(code >= 0 || code < sizeof(keycode_to_scancode) / sizeof(softKeyCode)) {
+        return keycode_to_scancode[code];
+    }
+
+    return KEY_NULL;
 }
 
 // ------------------------------------------------------
 #pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_WINDOW
 // ------------------------------------------------------
 
 SAPI int softInit(int width, int height, const char* title) { 
@@ -186,13 +359,24 @@ SAPI int softInitWindow(int width, int height, const char* title) {
     CORE.Input.Mouse.offset = (iVec2) { 0 };
     CORE.Input.Mouse.scale = (iVec2) { 1, 1 };
 
+    CORE.Input.Keyboard.exit_key = KEY_ESCAPE;
+
+    // TODO(yakub): Fix the Config Flag system
+
+    uint32_t flags = 0;
+    if(CORE.Window.config_flags & FLAG_WINDOW_RESIZABLE) flags |= SDL_WINDOW_RESIZABLE;
+    if(CORE.Window.config_flags & FLAG_WINDOW_FULLSCREEN) flags |= SDL_WINDOW_FULLSCREEN;
+    if(CORE.Window.config_flags & FLAG_WINDOW_MAXIMIZED) flags |= SDL_WINDOW_MAXIMIZED;
+    if(CORE.Window.config_flags & FLAG_WINDOW_MINIMIZED) flags |= SDL_WINDOW_MINIMIZED;
+    if(CORE.Window.config_flags & FLAG_WINDOW_HIGHDPI) flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+
     CORE.Window.window = SDL_CreateWindow(
         title, 
         SDL_WINDOWPOS_CENTERED, 
         SDL_WINDOWPOS_CENTERED, 
         width, 
         height, 
-        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI
+        flags
     );
 
     if(!CORE.Window.window) {
@@ -222,10 +406,14 @@ SAPI int softInitRenderer() {
         return SOFT_FAILED;
     }
 
+    uint32_t flags = 0;
+    flags |= SDL_RENDERER_TARGETTEXTURE;
+    if(CORE.Window.config_flags & FLAG_WINDOW_VSYNC) flags |= SDL_RENDERER_PRESENTVSYNC;
+
     CORE.Render.renderer = SDL_CreateRenderer(
         CORE.Window.window, 
         -1, 
-        0
+        flags
     );
 
     if(!CORE.Render.renderer) {
@@ -386,7 +574,57 @@ SAPI void softUnloadPixelData() {
     CORE.Render.data_valid = false;
 }
 
+SAPI void softSetConfigFlags(softConfigFlags flags) {
+    CORE.Window.config_flags |= flags;
+}
+
+SAPI void softSetWindowTitle(const char* title) {
+    SDL_SetWindowTitle(CORE.Window.window, title);
+    strcpy(CORE.Window.title, title);
+}
+
+SAPI bool softWindowShoulClose() {
+    return CORE.Window.quit;
+}
+
+SAPI void softCloseCallback() {
+    CORE.Window.quit = true;
+}
+
+SAPI iVec2 softGetWindowSize(){
+    return CORE.Window.screen_size;
+}
+
+SAPI iVec2 softGetWindowCenter(){
+    return (iVec2) { CORE.Window.screen_size.x / 2, CORE.Window.screen_size.y / 2 };
+}
+
+SAPI iVec2 softGetDisplaySize(){
+    return CORE.Window.display_size;
+}
+
+SAPI iVec2 softGetDisplayCenter(){
+    return (iVec2) { CORE.Window.display_size.x / 2, CORE.Window.display_size.y / 2 };
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_EVENTS
+// ------------------------------------------------------
+
+
 SAPI void softPollEvents() {
+    for(int key = 0; key < SOFT_KEYCODE_COUNT_TOTAL; key++) {
+        CORE.Input.Keyboard.key_pressed_previous[key] = CORE.Input.Keyboard.key_pressed_current[key];
+    }
+
+    for(int button = 0; button < SOFT_MOUSEBUTTON_COUNT_TOTAL; button++) {
+        CORE.Input.Mouse.mouse_button_pressed_previous[button] = CORE.Input.Mouse.mouse_button_pressed_current[button];
+    }
+
     SDL_Event event = { 0 };
     while(SDL_PollEvent(&event)) {
         switch(event.type) {
@@ -419,13 +657,29 @@ SAPI void softPollEvents() {
 
                 break;
 
-            case SDL_KEYDOWN:
+            case SDL_KEYDOWN: {
+                softKeyCode key = SDLScancodeToSoftKeyCode(event.key.keysym.scancode);
+
+                if(key != KEY_NULL && key < SOFT_KEYCODE_COUNT_TOTAL) {
+                    CORE.Input.Keyboard.key_pressed_current[key] = true;
+                }
+
+                if(softKeyPressed(CORE.Input.Keyboard.exit_key)) {
+                    softCloseCallback();
+                }
 
                 break;
+            }
 
-            case SDL_KEYUP:
+            case SDL_KEYUP: {
+                softKeyCode key = SDLScancodeToSoftKeyCode(event.key.keysym.scancode);
+
+                if(key != KEY_NULL && key < SOFT_KEYCODE_COUNT_TOTAL) {
+                    CORE.Input.Keyboard.key_pressed_current[key] = false;
+                }
 
                 break;
+            }
 
             case SDL_MOUSEMOTION:
                 CORE.Input.Mouse.position_previous = CORE.Input.Mouse.position_current;
@@ -441,16 +695,41 @@ SAPI void softPollEvents() {
                 
                 break;
 
-            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEBUTTONDOWN: {
+                softMouseButtons button;
+
+                if(event.button.button == SDL_BUTTON_LEFT) button = BUTTON_LEFT;
+                else if(event.button.button == SDL_BUTTON_MIDDLE) button = BUTTON_MIDDLE;
+                else if(event.button.button == SDL_BUTTON_RIGHT) button = BUTTON_RIGHT;
+
+                CORE.Input.Mouse.mouse_button_pressed_current[button] = true;
+                
+                break;
+            }
+
+            case SDL_MOUSEBUTTONUP:{
+                softMouseButtons button;
+
+                if(event.button.button == SDL_BUTTON_LEFT) button = BUTTON_LEFT;
+                else if(event.button.button == SDL_BUTTON_MIDDLE) button = BUTTON_MIDDLE;
+                else if(event.button.button == SDL_BUTTON_RIGHT) button = BUTTON_RIGHT;
+
+                CORE.Input.Mouse.mouse_button_pressed_current[button] = false;
 
                 break;
-
-            case SDL_MOUSEBUTTONUP:
-
-                break;
+            }
         }
     }
 }
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_INPUT
+// ------------------------------------------------------
+
 
 SAPI iVec2 softGetMousePosition() {
     return (iVec2) {
@@ -477,41 +756,72 @@ SAPI iVec2 softGetMouseWheel() {
     return CORE.Input.Mouse.wheel_move;
 }
 
-SAPI bool softKeyPressed(KeyCode key) {
-    // TODO(yakub): Implement the input functions for the Keyboard
-    // You'll probably need to convert the Soft KeyCode's to the SDL_Scancode's for this to work
-    
-    return false;
+SAPI bool softKeyPressed(softKeyCode key) {
+    bool pressed = false;
+
+    if(CORE.Input.Keyboard.key_pressed_current[key] && !CORE.Input.Keyboard.key_pressed_previous[key]) {
+        pressed = true;
+    }
+
+    return pressed;
 }
 
-SAPI bool softKeyReleased(KeyCode key) {
-    // TODO(yakub): Implement the input functions for the Keyboard
-    // You'll probably need to convert the Soft KeyCode's to the SDL_Scancode's for this to work
-    
-    return false;
+SAPI bool softKeyReleased(softKeyCode key) {    
+    bool released = false;
+
+    if(!CORE.Input.Keyboard.key_pressed_current[key] && CORE.Input.Keyboard.key_pressed_previous[key]) {
+        released = true;
+    }
+
+    return released;
 }
 
-SAPI bool softKeyDown(KeyCode key) {
-    // TODO(yakub): Implement the input functions for the Keyboard
-    // You'll probably need to convert the Soft KeyCode's to the SDL_Scancode's for this to work
-    
-    return false;
+SAPI bool softKeyDown(softKeyCode key) {
+    return CORE.Input.Keyboard.key_pressed_current[key];
 }
 
-SAPI bool softKeyUp(KeyCode key) {
-    // TODO(yakub): Implement the input functions for the Keyboard
-    // You'll probably need to convert the Soft KeyCode's to the SDL_Scancode's for this to work
-    
-    return false;
+SAPI bool softKeyUp(softKeyCode key) {    
+    return !CORE.Input.Keyboard.key_pressed_current[key];
 }
 
-SAPI iVec2 softGetWindowSize(){
-    return CORE.Window.screen_size;
+SAPI bool softMouseButtonPressed(softMouseButtons button) {
+    bool pressed = false;
+
+    if(CORE.Input.Mouse.mouse_button_pressed_current[button] && !CORE.Input.Mouse.mouse_button_pressed_previous[button]) {
+        pressed = true;
+    }
+
+    return pressed;
+
 }
 
-SAPI iVec2 softGetDisplaySize(){
-    return CORE.Window.display_size;
+SAPI bool softMouseButtonReleased(softMouseButtons button) {
+    bool released = false;
+
+    if(!CORE.Input.Mouse.mouse_button_pressed_current[button] && CORE.Input.Mouse.mouse_button_pressed_previous[button]) {
+        released = true;
+    }
+
+    return released;
+
 }
+
+SAPI bool softMouseButtonDown(softMouseButtons button) {
+    return CORE.Input.Mouse.mouse_button_pressed_current[button];
+}
+
+SAPI bool softMouseButtonUp(softMouseButtons button) {
+    return !CORE.Input.Mouse.mouse_button_pressed_current[button];
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_RENDER
+// ------------------------------------------------------
+
 
 SAPI void softClearBuffer() {
     if(!CORE.Render.data_valid) {
@@ -573,6 +883,15 @@ SAPI void softBlit() {
 
     SDL_RenderPresent(CORE.Render.renderer);
 }
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_SHAPES
+// ------------------------------------------------------
+
 
 SAPI void softDrawRectangle(Rect rect, Color color) {
     for(int i = 0; i < rect.size.y; i++) {
@@ -685,18 +1004,41 @@ SAPI void softDrawCircleLines(Circle circle, Color color) {
     } while (x < 0);
 }
 
-SAPI void softSetWindowTitle(const char* title) {
-    SDL_SetWindowTitle(CORE.Window.window, title);
-    strcpy(CORE.Window.title, title);
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_LOGGING
+// ------------------------------------------------------
+
+SAPI void softLog(SoftLogLevel log_level, const char *restrict txt, ...) {
+
+#ifdef SOFT_DISABLE_VERBOSITY
+
+    return;
+
+#endif
+
+    switch(log_level) {
+        case LOG_INFO:
+            softLogInfo(txt);
+            break;
+
+        case LOG_WARNING:
+            softLogWarning(txt);
+            break;
+
+        case LOG_ERROR:
+            softLogError(txt);
+            break;
+
+        default:
+            softLogWarning("Invalid log level: %i", (int)(log_level));
+            break;
+    }
 }
 
-SAPI bool softWindowShoulClose() {
-    return CORE.Window.quit;
-}
-
-SAPI void softCloseCallback() {
-    CORE.Window.quit = true;
-}
 
 SAPI void softLogInfo(const char *restrict txt, ...) {
 
@@ -758,6 +1100,14 @@ SAPI void softLogError(const char *restrict txt, ...) {
     fprintf(stderr, "[ERR] %s\n", buf);
 }
 
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_TEXT
+// ------------------------------------------------------
+
 SAPI const char* softTextFormat(const char *restrict txt, ...) {
     // Source: https://github.com/raysan5/raylib/blob/master/src/rtext.c#L1408
 
@@ -792,4 +1142,98 @@ SAPI const int softTextLength(const char *restrict txt) {
     return SDL_strlen(txt);
 }
 
-#endif // SOFT_IMPLEMENTATION
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_FUNC_COLOR
+// ------------------------------------------------------
+
+SAPI Pixel softColorToPixel(Color color) {
+    Pixel result = { 0 };
+
+    // NOTE: Remember about the reverse order of the bytes.
+    // This library is designed with the little endian architecture in mind!
+    // Order of the bytes is as follows: 0xAABBGGRR
+    // AA - alpha
+    // BB - blue
+    // GG - green
+    // RR - red
+    // We need to shift out bytes in the way that is compatible with the rule of endianess.
+    // RR -> result.r - we don't need to shift out bits to the left
+    // GG -> result.g - we need to shift to the left by 8 bits (1 byte = 1 uint8_t)
+    // BB -> result.b - we need to shift to the left by 16 bits (2 bytes = 2 uint8_t's)
+    // AA -> result.a - we need to shift to the left by 24 bits (3 bytes = 3 uint8_t's)
+
+    result = 
+        (int)color.r | 
+        (int)color.g << 8 | 
+        (int)color.b << 16 | 
+        (int)color.a << 24;
+
+    return result;
+}
+
+SAPI Pixel softColorFToPixel(fColor color) {
+    Color regular_color = {
+        (uint8_t) color.r * 255,
+        (uint8_t) color.g * 255,
+        (uint8_t) color.b * 255,
+        (uint8_t) color.a * 255,
+    };
+
+    return softColorToPixel(regular_color);
+}
+
+SAPI Color softPixelToColor(Pixel pixel) {
+    Color result = { 0 };
+
+    // NOTE: Remember about the reverse order of the bytes.
+    // This library is designed with the little endian architecture in mind!
+    // Order of the bytes is as follows: 0xAABBGGRR
+    // AA - alpha
+    // BB - blue
+    // GG - green
+    // RR - red
+    // When we want to get the values of our struct to the iColor variable, we need to shift our bytes correctly
+    // result.r -> RR - this is our starting point, so we don't need to shidt our bytes to the right
+    // result.g -> GG - we need to shift to the right by 8 bits (1 byte = 1 uint8_t)
+    // result.b -> BB - we need to shift to the right by 16 bits (2 bytes = 2 uint8_t's)
+    // result.a -> AA - we need to shift to the right by 24 bits (3 bytes = 3 uint8_t's)
+
+
+    result.r = ((uint8_t)pixel) & 0xFF;
+    result.g = ((uint8_t)pixel >> 8) & 0xFF;
+    result.b = ((uint8_t)pixel >> 16) & 0xFF;
+    result.a = ((uint8_t)pixel >> 24) & 0xFF;
+
+    return result;
+}
+
+SAPI fColor softPixelToColorF(Pixel pixel) {
+    Color regular_color = softPixelToColor(pixel);
+
+    return (fColor) { 
+        regular_color.r / 255.0f, 
+        regular_color.r / 255.0f, 
+        regular_color.r / 255.0f, 
+        regular_color.r / 255.0f
+    };
+}
+
+SAPI bool softColorCompare(Color a, Color b) {
+    return 
+        (a.r == b.r) &&
+        (a.g == b.g) &&
+        (a.b == b.b) &&
+        (a.a == b.a);
+}
+
+SAPI bool softIntColorCompare(Pixel a, Pixel b) {
+    return a & b;
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
