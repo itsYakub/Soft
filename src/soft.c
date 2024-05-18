@@ -191,6 +191,13 @@ internal void softSetPixel(int x, int y, Color color) {
         return; 
     }
 
+    color = softMixColor(
+        softPixelToColor(softGetPixelColor(x, y)),
+        color, 
+        color.a
+    );
+
+
     CORE.Render.data[y * CORE.Window.display_size.x + x] = softColorToPixel(color);
 }
 
@@ -324,7 +331,7 @@ SAPI int softInit(int width, int height, const char* title) {
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitPlatform() {
+SAPI int softInitPlatform(void) {
     softLogInfo("Initializing Soft v.%s", SOFT_VERSION);
     int init = SDL_Init(SDL_INIT_VIDEO);
 
@@ -395,7 +402,7 @@ SAPI int softInitWindow(int width, int height, const char* title) {
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitRenderer() {
+SAPI int softInitRenderer(void) {
     softLogInfo("Initializing Renderer.");
 
     if(!CORE.Window.window) {
@@ -471,7 +478,7 @@ SAPI int softInitRenderTexture(int width, int height) {
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitPixelData() {
+SAPI int softInitPixelData(void) {
     softLogInfo("Initializing Render Data.");
 
     if(!CORE.Window.window || !CORE.Render.renderer || !CORE.Render.texture) {
@@ -505,7 +512,7 @@ SAPI int softInitPixelData() {
     return SOFT_SUCCESS;
 }
 
-SAPI void softClose() {
+SAPI void softClose(void) {
     softLogInfo("Closing Soft v.%s", SOFT_VERSION);
 
     softUnloadPixelData();
@@ -515,14 +522,14 @@ SAPI void softClose() {
     softClosePlatform();
 }
 
-SAPI void softClosePlatform() {
+SAPI void softClosePlatform(void) {
     SDL_Quit();
 
     softLogInfo("Quitting. Goodbye World...");
     CORE.Platform.valid = false;
 }
 
-SAPI void softCloseWindow() {
+SAPI void softCloseWindow(void) {
     if(!CORE.Window.window) {
         softLogWarning("Window already closed. Returning...");
 
@@ -535,7 +542,7 @@ SAPI void softCloseWindow() {
     CORE.Window.valid = false;
 }
 
-SAPI void softCloseRenderer() {
+SAPI void softCloseRenderer(void) {
     if(!CORE.Render.renderer) {
         softLogWarning("Renderer already closed. Returning...");
 
@@ -548,7 +555,7 @@ SAPI void softCloseRenderer() {
     CORE.Render.renderer_valid = false;
 }
 
-SAPI void softUnloadRenderTexture() {
+SAPI void softUnloadRenderTexture(void) {
     if(!CORE.Render.texture) {
         softLogWarning("Render Texture already unloaded. Returning...");
 
@@ -561,7 +568,7 @@ SAPI void softUnloadRenderTexture() {
     CORE.Render.texture_valid = false;
 }
 
-SAPI void softUnloadPixelData() {
+SAPI void softUnloadPixelData(void) {
     if(!CORE.Render.data) {
         softLogWarning("Pixel Data already unloaded. Returning...");
 
@@ -583,27 +590,27 @@ SAPI void softSetWindowTitle(const char* title) {
     strcpy(CORE.Window.title, title);
 }
 
-SAPI bool softWindowShoulClose() {
+SAPI bool softWindowShoulClose(void) {
     return CORE.Window.quit;
 }
 
-SAPI void softCloseCallback() {
+SAPI void softCloseCallback(void) {
     CORE.Window.quit = true;
 }
 
-SAPI iVec2 softGetWindowSize(){
+SAPI iVec2 softGetWindowSize(void){
     return CORE.Window.screen_size;
 }
 
-SAPI iVec2 softGetWindowCenter(){
+SAPI iVec2 softGetWindowCenter(void){
     return (iVec2) { CORE.Window.screen_size.x / 2, CORE.Window.screen_size.y / 2 };
 }
 
-SAPI iVec2 softGetDisplaySize(){
+SAPI iVec2 softGetDisplaySize(void){
     return CORE.Window.display_size;
 }
 
-SAPI iVec2 softGetDisplayCenter(){
+SAPI iVec2 softGetDisplayCenter(void){
     return (iVec2) { CORE.Window.display_size.x / 2, CORE.Window.display_size.y / 2 };
 }
 
@@ -616,7 +623,7 @@ SAPI iVec2 softGetDisplayCenter(){
 // ------------------------------------------------------
 
 
-SAPI void softPollEvents() {
+SAPI void softPollEvents(void) {
     for(int key = 0; key < SOFT_KEYCODE_COUNT_TOTAL; key++) {
         CORE.Input.Keyboard.key_pressed_previous[key] = CORE.Input.Keyboard.key_pressed_current[key];
     }
@@ -731,28 +738,28 @@ SAPI void softPollEvents() {
 // ------------------------------------------------------
 
 
-SAPI iVec2 softGetMousePosition() {
+SAPI iVec2 softGetMousePosition(void) {
     return (iVec2) {
         (CORE.Input.Mouse.position_current.x + CORE.Input.Mouse.offset.x) * CORE.Input.Mouse.scale.x,
         (CORE.Input.Mouse.position_current.y + CORE.Input.Mouse.offset.y) * CORE.Input.Mouse.scale.y
     };
 }
 
-SAPI iVec2 softGetPreviousMousePosition() {
+SAPI iVec2 softGetPreviousMousePosition(void) {
     return (iVec2) {
         (CORE.Input.Mouse.position_previous.x + CORE.Input.Mouse.offset.x) * CORE.Input.Mouse.scale.x,
         (CORE.Input.Mouse.position_previous.y + CORE.Input.Mouse.offset.y) * CORE.Input.Mouse.scale.y
     };
 }
 
-SAPI iVec2 softGetMouseDelta() {
+SAPI iVec2 softGetMouseDelta(void) {
     return (iVec2) {
         CORE.Input.Mouse.position_current.x - CORE.Input.Mouse.position_previous.x,
         CORE.Input.Mouse.position_current.y - CORE.Input.Mouse.position_previous.y
     };
 }
 
-SAPI iVec2 softGetMouseWheel() {
+SAPI iVec2 softGetMouseWheel(void) {
     return CORE.Input.Mouse.wheel_move;
 }
 
@@ -823,7 +830,7 @@ SAPI bool softMouseButtonUp(softMouseButtons button) {
 // ------------------------------------------------------
 
 
-SAPI void softClearBuffer() {
+SAPI void softClearBuffer(void) {
     if(!CORE.Render.data_valid) {
         softLogError("Pixel data not valid. Returning...");
         return;
@@ -845,7 +852,7 @@ SAPI void softClearBufferColor(Color color) {
     }
 }
 
-SAPI void softBlit() {
+SAPI void softBlit(void) {
     if(!CORE.Render.data_valid) {
         softLogError("Pixel data not valid. Returning...");
         return;
@@ -896,7 +903,7 @@ SAPI void softBlit() {
 SAPI void softDrawRectangle(Rect rect, Color color) {
     for(int i = 0; i < rect.size.y; i++) {
         for(int j = 0; j < rect.size.x; j++) {
-            softSetPixel( rect.position.x + j, rect.position.y + i, color);
+            softSetPixel(rect.position.x + j, rect.position.y + i, color);
         }
     }
 }
@@ -912,6 +919,19 @@ SAPI void softDrawRectangleLines(Rect rect, Color color) {
     for(int i = 0; i < 4; i++) {
         softDrawLine(rect_lines[i], color);
     }
+}
+
+SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Color color) {
+    softDrawRectangle(
+        (Rect) {
+            (iVec2) {
+                rect.position.x - pivot.x,
+                rect.position.y - pivot.y,
+            },
+            rect.size
+        },
+        color
+    );
 }
 
 SAPI void softDrawLine(Line line, Color color) {
@@ -1150,6 +1170,18 @@ SAPI const int softTextLength(const char *restrict txt) {
 #pragma region SOFT_FUNC_COLOR
 // ------------------------------------------------------
 
+SAPI Pixel softGetPixelColor(int x, int y) {
+    if(x < 0 || x >= CORE.Window.screen_size.x) {
+        return softColorToPixel(BLACK);
+    }
+
+    if(y < 0 || y >= CORE.Window.screen_size.y) {
+        return softColorToPixel(BLACK);
+    }
+
+    return CORE.Render.data[y * CORE.Window.display_size.x + x];
+}
+
 SAPI Pixel softColorToPixel(Color color) {
     Pixel result = { 0 };
 
@@ -1161,29 +1193,18 @@ SAPI Pixel softColorToPixel(Color color) {
     // GG - green
     // RR - red
     // We need to shift out bytes in the way that is compatible with the rule of endianess.
-    // RR -> result.r - we don't need to shift out bits to the left
-    // GG -> result.g - we need to shift to the left by 8 bits (1 byte = 1 uint8_t)
-    // BB -> result.b - we need to shift to the left by 16 bits (2 bytes = 2 uint8_t's)
-    // AA -> result.a - we need to shift to the left by 24 bits (3 bytes = 3 uint8_t's)
+    // RR . result.r - we don't need to shift out bits to the left
+    // GG . result.g - we need to shift to the left by 8 bits (1 byte = 1 uint8_t)
+    // BB . result.b - we need to shift to the left by 16 bits (2 bytes = 2 uint8_t's)
+    // AA . result.a - we need to shift to the left by 24 bits (3 bytes = 3 uint8_t's)
 
     result = 
-        (int)color.r | 
-        (int)color.g << 8 | 
-        (int)color.b << 16 | 
-        (int)color.a << 24;
+        color.r | 
+        color.g << 8 | 
+        color.b << 16 | 
+        color.a << 24;
 
     return result;
-}
-
-SAPI Pixel softColorFToPixel(fColor color) {
-    Color regular_color = {
-        (uint8_t) color.r * 255,
-        (uint8_t) color.g * 255,
-        (uint8_t) color.b * 255,
-        (uint8_t) color.a * 255,
-    };
-
-    return softColorToPixel(regular_color);
 }
 
 SAPI Color softPixelToColor(Pixel pixel) {
@@ -1197,29 +1218,18 @@ SAPI Color softPixelToColor(Pixel pixel) {
     // GG - green
     // RR - red
     // When we want to get the values of our struct to the iColor variable, we need to shift our bytes correctly
-    // result.r -> RR - this is our starting point, so we don't need to shidt our bytes to the right
-    // result.g -> GG - we need to shift to the right by 8 bits (1 byte = 1 uint8_t)
-    // result.b -> BB - we need to shift to the right by 16 bits (2 bytes = 2 uint8_t's)
-    // result.a -> AA - we need to shift to the right by 24 bits (3 bytes = 3 uint8_t's)
+    // result.r . RR - this is our starting point, so we don't need to shidt our bytes to the right
+    // result.g . GG - we need to shift to the right by 8 bits (1 byte = 1 uint8_t)
+    // result.b . BB - we need to shift to the right by 16 bits (2 bytes = 2 uint8_t's)
+    // result.a . AA - we need to shift to the right by 24 bits (3 bytes = 3 uint8_t's)
 
 
-    result.r = ((uint8_t)pixel) & 0xFF;
-    result.g = ((uint8_t)pixel >> 8) & 0xFF;
-    result.b = ((uint8_t)pixel >> 16) & 0xFF;
-    result.a = ((uint8_t)pixel >> 24) & 0xFF;
+    result.r = (pixel >> 8 * 0) & 0xFF;
+    result.g = (pixel >> 8 * 1) & 0xFF;
+    result.b = (pixel >> 8 * 2) & 0xFF;
+    result.a = (pixel >> 8 * 3) & 0xFF;
 
     return result;
-}
-
-SAPI fColor softPixelToColorF(Pixel pixel) {
-    Color regular_color = softPixelToColor(pixel);
-
-    return (fColor) { 
-        regular_color.r / 255.0f, 
-        regular_color.r / 255.0f, 
-        regular_color.r / 255.0f, 
-        regular_color.r / 255.0f
-    };
 }
 
 SAPI bool softColorCompare(Color a, Color b) {
@@ -1232,6 +1242,33 @@ SAPI bool softColorCompare(Color a, Color b) {
 
 SAPI bool softIntColorCompare(Pixel a, Pixel b) {
     return a & b;
+}
+
+SAPI Color softMixColor(Color base_color, Color return_color, uint16_t alpha) {
+    Color result = return_color;
+
+    // Check if the alpha equals 255.
+    // That means the color is opaque, so there's no need to blend it.
+    // Not every object on the screen will be opaque, so this saves a lot of computational power.
+    if(alpha == 255) {
+        return result;
+    }
+
+    result.r = base_color.r + (return_color.r - base_color.r) * (alpha / 255.0);
+    result.g = base_color.g + (return_color.g - base_color.g) * (alpha / 255.0);
+    result.b = base_color.b + (return_color.b - base_color.b) * (alpha / 255.0);
+    result.a = alpha;
+
+    return result;
+}
+
+SAPI Color softColorFade(Color color, float factor) {
+    return (Color) {
+        color.r,
+        color.g,
+        color.b,
+        factor * 255
+    };
 }
 
 // ------------------------------------------------------

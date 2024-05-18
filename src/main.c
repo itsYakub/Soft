@@ -1,19 +1,14 @@
 #include "soft.h"
 
 int main(int argc, char** argv) {
-    softSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_VSYNC);
+    softSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI);
     softInit(1024, 768, softTextFormat("Soft %s", SOFT_VERSION));
 
-    iVec2 position = softGetWindowCenter();
-
     while(!softWindowShoulClose()) {
-        if(softMouseButtonDown(BUTTON_LEFT)) {
-            position = softGetMousePosition();
-        }
-
         softClearBufferColor(WHITE);
 
-        softDrawCircle((Circle) { position, 100 }, RED);
+        softDrawRectangleExtanded((Rect) { softGetWindowCenter(), { 100, 100 } }, (iVec2) { 50, 50 }, RED);
+        softDrawRectangleExtanded((Rect) { softGetMousePosition(), { 100, 100 } }, (iVec2) { 50, 50 }, softColorFade(GREEN, 0.5f));
 
         softBlit();
         softPollEvents();

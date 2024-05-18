@@ -103,7 +103,6 @@
 
 typedef uint32_t Pixel;
 typedef struct { uint8_t r; uint8_t g; uint8_t b; uint8_t a; } Color;
-typedef struct { float r; float g; float b; float a; } fColor;
 typedef struct { int x; int y; } iVec2;
 typedef struct { iVec2 position; iVec2 size; } Rect;
 typedef struct { iVec2 position; int r; } Circle;
@@ -259,28 +258,28 @@ typedef enum {
 // ------------------------------------------------------
 
 SAPI int softInit(int width, int height, const char* title);
-SAPI int softInitPlatform();
+SAPI int softInitPlatform(void);
 SAPI int softInitWindow(int width, int height, const char* title);
-SAPI int softInitRenderer();
+SAPI int softInitRenderer(void);
 SAPI int softInitRenderTexture(int width, int height);
-SAPI int softInitPixelData();
+SAPI int softInitPixelData(void);
 
-SAPI void softClose();
-SAPI void softClosePlatform();
-SAPI void softCloseWindow();
-SAPI void softCloseRenderer();
-SAPI void softUnloadRenderTexture();
-SAPI void softUnloadPixelData();
+SAPI void softClose(void);
+SAPI void softClosePlatform(void);
+SAPI void softCloseWindow(void);
+SAPI void softCloseRenderer(void);
+SAPI void softUnloadRenderTexture(void);
+SAPI void softUnloadPixelData(void);
 
 SAPI void softSetConfigFlags(softConfigFlags flags);
 SAPI void softSetWindowTitle(const char* title);
-SAPI bool softWindowShoulClose();
-SAPI void softCloseCallback();
+SAPI bool softWindowShoulClose(void);
+SAPI void softCloseCallback(void);
 
-SAPI iVec2 softGetWindowSize();
-SAPI iVec2 softGetWindowCenter();
-SAPI iVec2 softGetDisplaySize();
-SAPI iVec2 softGetDisplayCenter();
+SAPI iVec2 softGetWindowSize(void);
+SAPI iVec2 softGetWindowCenter(void);
+SAPI iVec2 softGetDisplaySize(void);
+SAPI iVec2 softGetDisplayCenter(void);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -300,10 +299,10 @@ SAPI void softPollEvents();
 #pragma region SOFT_FUNC_INPUT
 // ------------------------------------------------------
 
-SAPI iVec2 softGetMousePosition();
-SAPI iVec2 softGetPreviousMousePosition();
-SAPI iVec2 softGetMouseDelta();
-SAPI iVec2 softGetMouseWheel();
+SAPI iVec2 softGetMousePosition(void);
+SAPI iVec2 softGetPreviousMousePosition(void);
+SAPI iVec2 softGetMouseDelta(void);
+SAPI iVec2 softGetMouseWheel(void);
 
 SAPI bool softKeyPressed(softKeyCode key);
 SAPI bool softKeyReleased(softKeyCode key);
@@ -324,9 +323,9 @@ SAPI bool softMouseButtonUp(softMouseButtons button);
 #pragma region SOFT_FUNC_RENDER
 // ------------------------------------------------------
 
-SAPI void softClearBuffer();
+SAPI void softClearBuffer(void);
 SAPI void softClearBufferColor(Color color);
-SAPI void softBlit();
+SAPI void softBlit(void);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -338,7 +337,10 @@ SAPI void softBlit();
 
 SAPI void softDrawRectangle(Rect rect, Color color);
 SAPI void softDrawRectangleLines(Rect rect, Color color);
+SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Color color);
+
 SAPI void softDrawLine(Line line, Color color);
+
 SAPI void softDrawCircle(Circle circle, Color color);
 SAPI void softDrawCircleLines(Circle circle, Color color);
 
@@ -391,13 +393,16 @@ SAPI const int softTextLength(const char *restrict txt);
 #pragma region SOFT_FUNC_COLOR
 // ------------------------------------------------------
 
+SAPI Pixel softGetPixelColor(int x, int y);
+
 SAPI Pixel softColorToPixel(Color color);
-SAPI Pixel softColorFToPixel(fColor color);
 SAPI Color softPixelToColor(Pixel pixel);
-SAPI fColor softPixelToColorF(Pixel pixel);
 
 SAPI bool softColorCompare(Color a, Color b);
 SAPI bool softPixelColorCompare(Pixel a, Pixel b);
+
+SAPI Color softMixColor(Color base_color, Color return_color, uint16_t alpha);
+SAPI Color softColorFade(Color color, float factor);
 
 // ------------------------------------------------------
 #pragma endregion
