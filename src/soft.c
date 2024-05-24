@@ -15,6 +15,7 @@
 // - SOFT_INCLUDES;
 // - SOFT_INTERNAL_MACROS;
 // - SOFT_INTERNAL;
+// - SOFT_API_FUNC_CONFIG;
 // - SOFT_API_FUNC_WINDOW;
 // - SOFT_API_FUNC_EVENTS;
 // - SOFT_API_FUNC_INPUT;
@@ -22,7 +23,9 @@
 // - SOFT_API_FUNC_SHAPES;
 // - SOFT_API_FUNC_LOGGING;
 // - SOFT_API_FUNC_TEXT;
-// - SOFT_FUNC_COLOR
+// - SOFT_API_FUNC_COLOR;
+// - SOFT_API_FUNC_TIME;
+// - SOFT_API_FUNC_MATH;
 // ---------------------------------------------------------------------------------
 // External Dependencies:
 // - SDL2: https://github.com/libsdl-org/SDL.git
@@ -50,8 +53,10 @@
 // ---------------------------------------------------------------------------------
 
 // ------------------------------------------------------
+#include "SDL_error.h"
 #include "SDL_keycode.h"
 #include "SDL_scancode.h"
+#include "SDL_timer.h"
 #pragma region SOFT_INCLUDES
 // ------------------------------------------------------
 
@@ -115,6 +120,11 @@
 
 // CORE: Global state struct
 struct {
+    // CORE.Config - applications config
+    struct {
+        bool alpha_blend;
+    } Config;
+
     struct {
         char version[SOFT_CHARBUF_SIZE_MAX];
         bool valid;
@@ -126,7 +136,7 @@ struct {
 
         softConfigFlags config_flags;
 
-        char* title;
+        char title[SOFT_CHARBUF_SIZE_MAX];
 
         iVec2 display_size;
         iVec2 screen_size;
@@ -140,11 +150,13 @@ struct {
 
     // CORE.Render: Renderer state
     struct {
-        Pixel* data;
+        PixelBuffer data;
         SDL_Renderer* renderer;
         SDL_Texture* texture;
 
         iVec2 size;
+
+        bool vsync_enabled;
 
         bool data_valid;
         bool renderer_valid;
@@ -175,30 +187,49 @@ struct {
 
     } Input;
 
+    // CORE.Time: Timing state
+    struct {
+        // Delta time calculation
+        f32 current;
+        f32 previous;
+        f32 delta_time;
+        
+        f32 frame_target;
+        f32 frame_lifespan;
+
+        f32 application_lifetime;
+        
+        u32 framerate;
+    } Time;
 } CORE;
 
-internal void softSetPixel(int x, int y, Color color) {
+internal void softSetPixel(i32 x, i32 y, Pixel pixel) {
+    // Check if the pixel buffer exists.
     if(!CORE.Render.data_valid) {
         softLogError("Pixel data not valid. Returning...");
         return;
     }
 
-    if(x < 0 || x >= CORE.Window.screen_size.x) { 
+    // Simple boundary check.
+    if(x < 0 || x >= CORE.Window.screen_size.x || y < 0 || y >= CORE.Window.screen_size.y) { 
         return; 
     }
 
-    if(y < 0 || y >= CORE.Window.screen_size.y) { 
+    // Check if the pixel at position [x, y] equals the color given as a parameter.
+    // If so, skip the rest of this function; repeating the same action for something that doesn't change is a resource-waste. 
+    if(softPixelColorCompare(pixel, softGetPixelColor(x, y))) { 
         return; 
     }
 
-    color = softMixColor(
-        softPixelToColor(softGetPixelColor(x, y)),
-        color, 
-        color.a
-    );
+    if(CORE.Config.alpha_blend) {
+        pixel = softMixPixels(
+            softGetPixelColor(x, y),
+            pixel, 
+            softPixelToColor(pixel).a
+        );
+    }
 
-
-    CORE.Render.data[y * CORE.Window.display_size.x + x] = softColorToPixel(color);
+    CORE.Render.data[y * CORE.Window.display_size.x + x] = pixel;
 }
 
 internal softKeyCode keycode_to_scancode[] = {
@@ -292,10 +323,10 @@ internal softKeyCode keycode_to_scancode[] = {
 
     0, // SDL_SCANCODE_END
     0, // SDL_SCANCODE_PAGEDOWN
-    0, // SDL_SCANCODE_RIGHT
-    0, // SDL_SCANCODE_LEFT
-    0, // SDL_SCANCODE_DOWN
-    0, // SDL_SCANCODE_UP
+    KEY_RIGHT, 
+    KEY_LEFT, 
+    KEY_DOWN, 
+    KEY_UP, 
 };
 
 internal softKeyCode SDLScancodeToSoftKeyCode(SDL_Scancode code) {
@@ -306,15 +337,50 @@ internal softKeyCode SDLScancodeToSoftKeyCode(SDL_Scancode code) {
     return KEY_NULL;
 }
 
+internal void softTimeMenagement() {
+    CORE.Time.current = softTime();
+    f32 frame_time = CORE.Time.current - CORE.Time.previous;
+    CORE.Time.previous = CORE.Time.current;
+
+    CORE.Time.delta_time = frame_time;
+
+    if(CORE.Time.delta_time < CORE.Time.frame_target) {
+        softWait(CORE.Time.frame_target - CORE.Time.delta_time);
+
+        CORE.Time.current = softTime();
+        f32 wait_time = CORE.Time.current - CORE.Time.previous;
+        CORE.Time.previous = CORE.Time.current;
+
+        CORE.Time.delta_time += wait_time;
+    }
+}
+
 // ------------------------------------------------------
 #pragma endregion
 // ------------------------------------------------------
 
 // ------------------------------------------------------
+#pragma region SOFT_API_FUNC_CONFIG
+// ------------------------------------------------------
+
+SAPI void softAlphaBlendState(bool state) {
+    state ?
+        softLogInfo("Alpha-Blending: ENABLED (\"Alpha\" channle will be used during the color calculations).") :
+        softLogInfo("Alpha-Blending: DISABLED (\"Alpha\" channle will be immited during the color calculations).");
+
+    CORE.Config.alpha_blend = state;
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+
+// ------------------------------------------------------
 #pragma region SOFT_API_FUNC_WINDOW
 // ------------------------------------------------------
 
-SAPI int softInit(int width, int height, const char* title) { 
+SAPI i32 softInit(i32 width, i32 height, const string title) { 
     softInitPlatform();
     softInitWindow(width, height, title);
     softInitRenderer();
@@ -331,9 +397,9 @@ SAPI int softInit(int width, int height, const char* title) {
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitPlatform(void) {
+SAPI i32 softInitPlatform(void) {
     softLogInfo("Initializing Soft v.%s", SOFT_VERSION);
-    int init = SDL_Init(SDL_INIT_VIDEO);
+    i32 init = SDL_Init(SDL_INIT_VIDEO);
 
     if(init != 0) {
         softLogError("%s", strerror(errno));
@@ -342,17 +408,20 @@ SAPI int softInitPlatform(void) {
     }
 
     strcpy(CORE.Platform.version, softTextFormat("%d.%d.%d", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL));
-    CORE.Platform.valid = true;
+    
+    softAlphaBlendState(true);
 
     softLogInfo("   > Platform Version: %s", CORE.Platform.version);
     softLogInfo("   > Version: %s", SOFT_VERSION);
     softLogInfo("   > Version major: %i", SOFT_VERSION_MAJOR);
     softLogInfo("   > Version minor: %i", SOFT_VERSION_MINOR);
 
+    CORE.Platform.valid = true;
+
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitWindow(int width, int height, const char* title) {
+SAPI i32 softInitWindow(i32 width, i32 height, const string title) {
     softLogInfo("Initializing Window.");
 
     CORE.Window.screen_size = (iVec2) { width, height };
@@ -370,7 +439,7 @@ SAPI int softInitWindow(int width, int height, const char* title) {
 
     // TODO(yakub): Fix the Config Flag system
 
-    uint32_t flags = 0;
+    u32 flags = 0;
     if(CORE.Window.config_flags & FLAG_WINDOW_RESIZABLE) flags |= SDL_WINDOW_RESIZABLE;
     if(CORE.Window.config_flags & FLAG_WINDOW_FULLSCREEN) flags |= SDL_WINDOW_FULLSCREEN;
     if(CORE.Window.config_flags & FLAG_WINDOW_MAXIMIZED) flags |= SDL_WINDOW_MAXIMIZED;
@@ -402,20 +471,27 @@ SAPI int softInitWindow(int width, int height, const char* title) {
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitRenderer(void) {
+SAPI i32 softInitRenderer(void) {
     softLogInfo("Initializing Renderer.");
 
     if(!CORE.Window.window) {
-        softLogError("%s", strerror(errno));
+        softLogError("%s", SDL_GetError());
 
         softClosePlatform();
 
         return SOFT_FAILED;
     }
 
-    uint32_t flags = 0;
-    flags |= SDL_RENDERER_TARGETTEXTURE;
-    if(CORE.Window.config_flags & FLAG_WINDOW_VSYNC) flags |= SDL_RENDERER_PRESENTVSYNC;
+    u32 flags = 0;
+    flags |= SDL_RENDERER_ACCELERATED;
+
+    if(CORE.Window.config_flags & FLAG_WINDOW_VSYNC) {
+        flags |= SDL_RENDERER_PRESENTVSYNC;
+        CORE.Render.vsync_enabled = true;
+    } else {
+        CORE.Render.vsync_enabled = false;
+    }
+        
 
     CORE.Render.renderer = SDL_CreateRenderer(
         CORE.Window.window, 
@@ -424,7 +500,7 @@ SAPI int softInitRenderer(void) {
     );
 
     if(!CORE.Render.renderer) {
-        softLogError("%s", strerror(errno));
+        softLogError("%s", SDL_GetError());
 
         softCloseWindow();
         softClosePlatform();
@@ -437,11 +513,11 @@ SAPI int softInitRenderer(void) {
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitRenderTexture(int width, int height) {
+SAPI i32 softInitRenderTexture(i32 width, i32 height) {
     softLogInfo("Initializing RenderTexture.");
 
     if(!CORE.Window.window || !CORE.Render.renderer) {
-        softLogError("%s", strerror(errno));
+        softLogError("%s", SDL_GetError());
 
         softCloseWindow();
         softCloseRenderer();
@@ -462,7 +538,7 @@ SAPI int softInitRenderTexture(int width, int height) {
     );
 
     if(!CORE.Render.texture) {
-        softLogError("%s", strerror(errno));
+        softLogError("%s", SDL_GetError());
 
         softCloseWindow();
         softCloseRenderer();
@@ -478,7 +554,7 @@ SAPI int softInitRenderTexture(int width, int height) {
     return SOFT_SUCCESS;
 }
 
-SAPI int softInitPixelData(void) {
+SAPI i32 softInitPixelData(void) {
     softLogInfo("Initializing Render Data.");
 
     if(!CORE.Window.window || !CORE.Render.renderer || !CORE.Render.texture) {
@@ -581,15 +657,6 @@ SAPI void softUnloadPixelData(void) {
     CORE.Render.data_valid = false;
 }
 
-SAPI void softSetConfigFlags(softConfigFlags flags) {
-    CORE.Window.config_flags |= flags;
-}
-
-SAPI void softSetWindowTitle(const char* title) {
-    SDL_SetWindowTitle(CORE.Window.window, title);
-    strcpy(CORE.Window.title, title);
-}
-
 SAPI bool softWindowShoulClose(void) {
     return CORE.Window.quit;
 }
@@ -614,6 +681,15 @@ SAPI iVec2 softGetDisplayCenter(void){
     return (iVec2) { CORE.Window.display_size.x / 2, CORE.Window.display_size.y / 2 };
 }
 
+SAPI void softSetConfigFlags(softConfigFlags flags) {
+    CORE.Window.config_flags |= flags;
+}
+
+SAPI void softSetWindowTitle(const string title) {
+    SDL_SetWindowTitle(CORE.Window.window, title);
+    strcpy(CORE.Window.title, title);
+}
+
 // ------------------------------------------------------
 #pragma endregion
 // ------------------------------------------------------
@@ -624,11 +700,11 @@ SAPI iVec2 softGetDisplayCenter(void){
 
 
 SAPI void softPollEvents(void) {
-    for(int key = 0; key < SOFT_KEYCODE_COUNT_TOTAL; key++) {
+    for(i32 key = 0; key < SOFT_KEYCODE_COUNT_TOTAL; key++) {
         CORE.Input.Keyboard.key_pressed_previous[key] = CORE.Input.Keyboard.key_pressed_current[key];
     }
 
-    for(int button = 0; button < SOFT_MOUSEBUTTON_COUNT_TOTAL; button++) {
+    for(i32 button = 0; button < SOFT_MOUSEBUTTON_COUNT_TOTAL; button++) {
         CORE.Input.Mouse.mouse_button_pressed_previous[button] = CORE.Input.Mouse.mouse_button_pressed_current[button];
     }
 
@@ -839,15 +915,15 @@ SAPI void softClearBuffer(void) {
     SDL_memset(CORE.Render.data, 0, CORE.Window.display_size.x * CORE.Window.display_size.y * sizeof(Pixel));
 }
 
-SAPI void softClearBufferColor(Color color) {
+SAPI void softClearBufferColor(Pixel pixel) {
     if(!CORE.Render.data_valid) {
         softLogError("Pixel data not valid. Returning...");
         return;
     }
 
-    for(int y = 0; y < CORE.Window.display_size.y; y++) {
-        for(int x = 0; x < CORE.Window.display_size.x; x++) {
-            softSetPixel(x, y, color);
+    for(i32 y = 0; y < CORE.Window.screen_size.y; y++) {
+        for(i32 x = 0; x < CORE.Window.screen_size.x; x++) {
+            softSetPixel(x, y, pixel);
         }
     }
 }
@@ -889,6 +965,9 @@ SAPI void softBlit(void) {
     );
 
     SDL_RenderPresent(CORE.Render.renderer);
+
+    softTimeMenagement();
+    softPollEvents();
 }
 
 // ------------------------------------------------------
@@ -899,16 +978,15 @@ SAPI void softBlit(void) {
 #pragma region SOFT_API_FUNC_SHAPES
 // ------------------------------------------------------
 
-
-SAPI void softDrawRectangle(Rect rect, Color color) {
-    for(int i = 0; i < rect.size.y; i++) {
-        for(int j = 0; j < rect.size.x; j++) {
-            softSetPixel(rect.position.x + j, rect.position.y + i, color);
+SAPI void softDrawRectangle(Rect rect, Pixel pixel) {
+    for(i32 i = 0; i < rect.size.y; i++) {
+        for(i32 j = 0; j < rect.size.x; j++) {
+            softSetPixel(rect.position.x + j, rect.position.y + i, pixel);
         }
     }
 }
 
-SAPI void softDrawRectangleLines(Rect rect, Color color) {
+SAPI void softDrawRectangleLines(Rect rect, Pixel pixel) {
     Line rect_lines[4]  = {
         { (iVec2) { rect.position.x, rect.position.y }, (iVec2) { rect.position.x + rect.size.x, rect.position.y } },
         { (iVec2) { rect.position.x, rect.position.y }, (iVec2) { rect.position.x, rect.position.y + rect.size.y} },
@@ -916,12 +994,12 @@ SAPI void softDrawRectangleLines(Rect rect, Color color) {
         { (iVec2) { rect.position.x, rect.position.y + rect.size.y }, (iVec2) { rect.position.x + rect.size.x, rect.position.y + rect.size.y } },
     };
 
-    for(int i = 0; i < 4; i++) {
-        softDrawLine(rect_lines[i], color);
+    for(i32 i = 0; i < 4; i++) {
+        softDrawLine(rect_lines[i], pixel);
     }
 }
 
-SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Color color) {
+SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Pixel pixel) {
     softDrawRectangle(
         (Rect) {
             (iVec2) {
@@ -930,25 +1008,25 @@ SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Color color) {
             },
             rect.size
         },
-        color
+        pixel
     );
 }
 
-SAPI void softDrawLine(Line line, Color color) {
+SAPI void softDrawLine(Line line, Pixel pixel) {
     // Source: https://en.wikipedia.org/wiki/Digital_differential_analyzer_(graphics_algorithm)
 
-    float dx = line.b.x - line.a.x;
-    float dy = line.b.y - line.a.y;
-    float steps = 0;
-    float i = 0;
+    f32 dx = line.b.x - line.a.x;
+    f32 dy = line.b.y - line.a.y;
+    f32 steps = 0;
+    f32 i = 0;
 
-    float x = 0;
-    float y = 0;
+    f32 x = 0;
+    f32 y = 0;
 
-    if (abs((int)(dx)) >= abs((int)(dy))) {
-        steps = abs((int)(dx));
+    if (abs((i32)(dx)) >= abs((i32)(dy))) {
+        steps = abs((i32)(dx));
     } else {
-        steps = abs((int)(dy));
+        steps = abs((i32)(dy));
     }
 
     dx = dx / steps;
@@ -957,60 +1035,47 @@ SAPI void softDrawLine(Line line, Color color) {
     y = line.a.y;
 
     while (i <= steps) {
-        softSetPixel(x, y, color);
+        softSetPixel(x, y, pixel);
         x += dx;
         y += dy;
         i++;
     }
 }
 
-SAPI void softDrawCircle(Circle circle, Color color) {
-    // Source: https://stackoverflow.com/questions/1201200/fast-algorithm-for-drawing-filled-circles/14976268#14976268
+SAPI void softDrawCircle(Circle circle, Pixel pixel) {
+    // Source: https://youtu.be/LmQKZmQh1ZQ?list=PLpM-Dvs8t0Va-Gb0Dp4d9t8yvNFHaKH6N&t=3088
 
-    int x = circle.r;
-    int y = 0;
-    int xChange = 1 - (circle.r << 1);
-    int yChange = 0;
-    int radiusError = 0;
+    i32 x0 = circle.position.x - circle.r;
+    i32 x1 = circle.position.x + circle.r;
 
-    while (x >= y)
-    {
-        for (int i = circle.position.x - x; i <= circle.position.x + x; i++)
-        {
-            softSetPixel(i, circle.position.y + y, color);
-            softSetPixel(i, circle.position.y - y, color);
-        }
-        for (int i = circle.position.x - y; i <= circle.position.x + y; i++)
-        {
-            softSetPixel(i, circle.position.y + x, color);
-            softSetPixel(i, circle.position.y - x, color);
-        }
+    i32 y0 = circle.position.y - circle.r;
+    i32 y1 = circle.position.y + circle.r;
 
-        y++;
-        radiusError += yChange;
-        yChange += 2;
-        if (((radiusError << 1) + xChange) > 0)
-        {
-            x--;
-            radiusError += xChange;
-            xChange += 2;
+    for(i32 y = y0; y < y1; y++) {
+        for(i32 x = x0; x < x1; x++) {
+            i32 x_delta = x - circle.position.x;
+            i32 y_delta = y - circle.position.y;
+
+            if(softSqrI(x_delta) + softSqrI(y_delta) <= softSqrI(circle.r)) {
+                softSetPixel(x, y, pixel);
+            }
         }
     }
 }
 
-SAPI void softDrawCircleLines(Circle circle, Color color) {
+SAPI void softDrawCircleLines(Circle circle, Pixel pixel) {
     // Source: https://zingl.github.io/bresenham.html
 
-    int r = circle.r;
-    int x = r * -1;
-    int y = 0; 
-    int err = 2 - 2 * r; 
+    i32 r = circle.r;
+    i32 x = r * -1;
+    i32 y = 0; 
+    i32 err = 2 - 2 * r; 
 
     do {
-        softSetPixel(circle.position.x - x, circle.position.y + y, color);
-        softSetPixel(circle.position.x - y, circle.position.y - x, color);
-        softSetPixel(circle.position.x + x, circle.position.y - y, color);
-        softSetPixel(circle.position.x + y, circle.position.y + x, color);
+        softSetPixel(circle.position.x - x, circle.position.y + y, pixel);
+        softSetPixel(circle.position.x - y, circle.position.y - x, pixel);
+        softSetPixel(circle.position.x + x, circle.position.y - y, pixel);
+        softSetPixel(circle.position.x + y, circle.position.y + x, pixel);
 
         r = err;
 
@@ -1032,14 +1097,7 @@ SAPI void softDrawCircleLines(Circle circle, Color color) {
 #pragma region SOFT_API_FUNC_LOGGING
 // ------------------------------------------------------
 
-SAPI void softLog(SoftLogLevel log_level, const char *restrict txt, ...) {
-
-#ifdef SOFT_DISABLE_VERBOSITY
-
-    return;
-
-#endif
-
+SAPI void softLog(SoftLogLevel log_level, const string restrict txt, ...) {
     switch(log_level) {
         case LOG_INFO:
             softLogInfo(txt);
@@ -1054,20 +1112,13 @@ SAPI void softLog(SoftLogLevel log_level, const char *restrict txt, ...) {
             break;
 
         default:
-            softLogWarning("Invalid log level: %i", (int)(log_level));
+            softLogWarning("Invalid log level: %i", (i32)(log_level));
             break;
     }
 }
 
 
-SAPI void softLogInfo(const char *restrict txt, ...) {
-
-#ifdef SOFT_DISABLE_VERBOSITY
-
-    return;
-
-#endif
-
+SAPI void softLogInfo(const string restrict txt, ...) {
     char buf[256];
 
     va_list list;
@@ -1080,14 +1131,7 @@ SAPI void softLogInfo(const char *restrict txt, ...) {
     fprintf(stdout, "[INFO] %s\n", buf);
 }
 
-SAPI void softLogWarning(const char *restrict txt, ...) {
-
-#ifdef SOFT_DISABLE_VERBOSITY
-
-    return;
-
-#endif
-
+SAPI void softLogWarning(const string restrict txt, ...) {
     char buf[256];
 
     va_list list;
@@ -1100,14 +1144,7 @@ SAPI void softLogWarning(const char *restrict txt, ...) {
     fprintf(stdout, "[WARN] %s\n", buf);
 }
 
-SAPI void softLogError(const char *restrict txt, ...) {
-
-#ifdef SOFT_DISABLE_VERBOSITY
-
-    return;
-
-#endif
-
+SAPI void softLogError(const string restrict txt, ...) {
     char buf[256];
 
     va_list list;
@@ -1128,15 +1165,15 @@ SAPI void softLogError(const char *restrict txt, ...) {
 #pragma region SOFT_API_FUNC_TEXT
 // ------------------------------------------------------
 
-SAPI const char* softTextFormat(const char *restrict txt, ...) {
+SAPI const string softTextFormat(const string restrict txt, ...) {
     // Source: https://github.com/raysan5/raylib/blob/master/src/rtext.c#L1408
 
     #define CHARBUF_COUNT_TOTAL 4
 
     global char buf[CHARBUF_COUNT_TOTAL][SOFT_CHARBUF_SIZE_MAX] = { 0 };
-    global int buffer_index = 0;
+    global i32 buffer_index = 0;
 
-    char* current_buffer = buf[buffer_index];
+    string current_buffer = buf[buffer_index];
     SDL_memset(current_buffer, 0, SOFT_CHARBUF_SIZE_MAX * sizeof(char));
 
     va_list list;
@@ -1154,11 +1191,11 @@ SAPI const char* softTextFormat(const char *restrict txt, ...) {
     return current_buffer;
 }
 
-SAPI const bool softTextEmpty(const char *restrict txt, ...) {
+SAPI const bool softTextEmpty(const string restrict txt, ...) {
     return txt[0] != '\0';
 }
 
-SAPI const int softTextLength(const char *restrict txt) {
+SAPI const i32 softTextLength(const string restrict txt) {
     return SDL_strlen(txt);
 }
 
@@ -1167,16 +1204,12 @@ SAPI const int softTextLength(const char *restrict txt) {
 // ------------------------------------------------------
 
 // ------------------------------------------------------
-#pragma region SOFT_FUNC_COLOR
+#pragma region SOFT_API_FUNC_COLOR
 // ------------------------------------------------------
 
-SAPI Pixel softGetPixelColor(int x, int y) {
-    if(x < 0 || x >= CORE.Window.screen_size.x) {
-        return softColorToPixel(BLACK);
-    }
-
-    if(y < 0 || y >= CORE.Window.screen_size.y) {
-        return softColorToPixel(BLACK);
+SAPI Pixel softGetPixelColor(i32 x, i32 y) {
+    if(x < 0 || x >= CORE.Window.screen_size.x || y < 0 || y >= CORE.Window.screen_size.y) {
+        return BLACK;
     }
 
     return CORE.Render.data[y * CORE.Window.display_size.x + x];
@@ -1240,11 +1273,11 @@ SAPI bool softColorCompare(Color a, Color b) {
         (a.a == b.a);
 }
 
-SAPI bool softIntColorCompare(Pixel a, Pixel b) {
-    return a & b;
+SAPI bool softPixelColorCompare(Pixel a, Pixel b) {
+    return a == b;
 }
 
-SAPI Color softMixColor(Color base_color, Color return_color, uint16_t alpha) {
+SAPI Color softMixColor(Color base_color, Color return_color, u8 alpha) {
     Color result = return_color;
 
     // Check if the alpha equals 255.
@@ -1252,6 +1285,8 @@ SAPI Color softMixColor(Color base_color, Color return_color, uint16_t alpha) {
     // Not every object on the screen will be opaque, so this saves a lot of computational power.
     if(alpha == 255) {
         return result;
+    } else if(alpha == 0) {
+        return softPixelToColor(BLANK);
     }
 
     result.r = base_color.r + (return_color.r - base_color.r) * (alpha / 255.0);
@@ -1262,12 +1297,193 @@ SAPI Color softMixColor(Color base_color, Color return_color, uint16_t alpha) {
     return result;
 }
 
-SAPI Color softColorFade(Color color, float factor) {
+SAPI Pixel softMixPixels(Pixel base_pixel, Pixel return_pixel, u8 alpha) {
+    Color base = softPixelToColor(base_pixel);
+    Color result = softPixelToColor(return_pixel);
+
+    // Check if the alpha equals 255.
+    // That means the color is opaque, so there's no need to blend it.
+    // Not every object on the screen will be opaque, so this saves a lot of computational power.
+    if(alpha == 255) {
+        return softColorToPixel(result);
+    } else if(alpha == 0) {
+        return BLANK;
+    }
+
+    result.r = base.r + (result.r - base.r) * (alpha / 255.0);
+    result.g = base.g + (result.g - base.g) * (alpha / 255.0);
+    result.b = base.b + (result.b - base.b) * (alpha / 255.0);
+    result.a = alpha;
+
+    return softColorToPixel(result);
+}
+
+SAPI Color softColorFade(Color color, f32 factor) {
     return (Color) {
         color.r,
         color.g,
         color.b,
         factor * 255
+    };
+}
+
+SAPI Pixel softPixelFade(Pixel pixel, f32 factor) {
+    return softColorToPixel(
+        softColorFade(
+            softPixelToColor(pixel), 
+            factor
+        )
+    );
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_TIME
+// ------------------------------------------------------
+
+SAPI f32 softDeltaTime(void) {
+    return CORE.Time.delta_time;
+}
+
+SAPI f32 softTime(void) {
+    u32 miliseconds = SDL_GetTicks();
+    i32 second_size = 1000;
+
+    CORE.Time.application_lifetime = (f32)(miliseconds) / second_size;
+
+    return CORE.Time.application_lifetime;
+}
+
+SAPI i32 softFPS(void) {
+    return 1 / CORE.Time.delta_time;
+}
+
+SAPI void softTargetFPS(u32 framerate) {
+    CORE.Time.framerate = framerate;
+    CORE.Time.frame_target = 1.0f / framerate;
+
+    softLogInfo("Framerate: %iFPS (%0.04fms)", CORE.Time.framerate, CORE.Time.frame_target);
+}
+
+SAPI void softWait(f32 seconds) {
+    SDL_Delay(seconds * 1000);
+}
+
+SAPI Timer softTimer(const f32 TIME) {
+    return (Timer) {
+        TIME,
+        TIME,
+        false
+    };
+}
+
+SAPI void softTimerProceed(Timer* timer, f32 delta_time) {
+    if(!softTimerFinished(timer)) {
+        timer->current_time -= delta_time;
+    }
+}
+SAPI bool softTimerFinished(Timer* timer) {
+    timer->finished = timer->current_time <= 0.0f;
+
+    return timer->finished;
+}
+
+SAPI void softTimerRestart(Timer* timer) {
+    timer->current_time = timer->initial_time;
+    timer->finished = false;
+}
+
+SAPI void softTimerReset(Timer* timer, f32 time) {
+    timer->initial_time = timer->initial_time;
+    timer->current_time = timer->initial_time;
+    timer->finished = false;
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_MATH
+// ------------------------------------------------------
+
+SAPI f32 softLerpF(f32 start, f32 end, f32 t) {
+    return start + (end - start) * t;
+}
+
+SAPI f32 softPowF(f32 a, f32 n) {
+    return SDL_pow(a, n);
+}
+
+SAPI f32 softSqrF(f32 a) {
+    return SDL_pow(a, 2);
+}
+
+SAPI f32 softSqrtF(f32 a) {
+    return SDL_sqrt(a);
+}
+
+SAPI i32 softLerpI(i32 start, i32 end, f32 t) {
+    return start + (end - start) * t;
+}
+
+SAPI i32 softPowI(i32 a, i32 n) {
+    return SDL_pow(a, n);
+}
+
+SAPI i32 softSqrI(i32 a) {
+    return SDL_pow(a, 2);
+}
+
+SAPI i32 softSqrtI(i32 a) {
+    return SDL_sqrt(a);
+}
+
+
+
+SAPI iVec2 softZero(void) {
+    return (iVec2) { 0.0f, 0.0f };
+}
+
+SAPI iVec2 softOne(void) {
+    return (iVec2) { 1.0f, 1.0f };
+}
+
+SAPI iVec2 softUp(void) {
+    return (iVec2) { 0.0f, -1.0f };
+}
+
+SAPI iVec2 softDown(void) {
+    return (iVec2) { 0.0f, 1.0f };
+}
+
+SAPI iVec2 softLeft(void) {
+    return (iVec2) { -1.0f, 0.0f };
+}
+
+SAPI iVec2 softRight(void) {
+    return (iVec2) { 1.0f, 0.0f };
+}
+
+SAPI iVec2 softVectorAdd(iVec2 a, iVec2 b) {
+    return (iVec2) { a.x + b.x, a.y + b.y };
+}
+
+SAPI iVec2 softVectorSub(iVec2 a, iVec2 b) {
+    return (iVec2) { a.x - b.x, a.y - b.y };
+}
+
+SAPI iVec2 softVectorMult(iVec2 a, iVec2 b) {
+    return (iVec2) { a.x * b.x, a.y * b.y };
+}
+
+SAPI iVec2 softVectorLerp(iVec2 start, iVec2 end, f32 t) {
+    return (iVec2) {
+        softLerpI(start.x, end.x, t),
+        softLerpI(start.y, end.y, t)
     };
 }
 

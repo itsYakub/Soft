@@ -32,12 +32,6 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 # ---------------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.14)
-
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 project(
     soft 
     VERSION 1.0
@@ -46,15 +40,61 @@ project(
     LANGUAGES C
 )
 
-include(FetchContent)
-FetchContent_Declare(
-    SDL2
-    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG release-2.30.3 
+set(
+    SOURCES 
+    
+    ${CMAKE_CURRENT_SOURCE_DIR}/soft.c
 )
 
-FetchContent_MakeAvailable(SDL2)
-target_compile_definitions(SDL2 PUBLIC SDL2)
+add_library(
+    ${PROJECT_NAME} STATIC 
+    
+    ${SOURCES}
+)
 
-add_subdirectory(src soft)
-add_subdirectory(example)
+target_compile_definitions(${PROJECT_NAME} PUBLIC ${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME} PUBLIC SDL2)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+if (LINUX)
+
+    target_link_options(
+        ${PROJECT_NAME} PRIVATE 
+        
+        -static-libgcc 
+        -static-libstdc++
+    )
+
+endif()
+
+if (WIN32)
+
+    target_compile_options(
+        ${PROJECT_NAME} PRIVATE 
+        
+        -mwindows
+    )
+
+    target_link_options(
+        ${PROJECT_NAME} PRIVATE 
+        
+        -static
+    )
+
+endif()
+
+if (APPLE)
+
+    target_link_libraries(
+        ${PROJECT_NAME} 
+        
+        "-framework IOKit"
+    )
+
+    target_link_libraries(
+        ${PROJECT_NAME} 
+        
+        "-framework Cocoa"
+    )
+
+endif()

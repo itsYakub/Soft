@@ -32,29 +32,63 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 # ---------------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.14)
-
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 project(
-    soft 
-    VERSION 1.0
-    HOMEPAGE_URL "https://github.com/itsYakub/Soft"
-    DESCRIPTION "Simple 2D Real-Time Graphics Library"
+    demo 
+    DESCRIPTION "Demonstration of Soft Graphics Library"
     LANGUAGES C
 )
 
-include(FetchContent)
-FetchContent_Declare(
-    SDL2
-    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG release-2.30.3 
-)
 
-FetchContent_MakeAvailable(SDL2)
-target_compile_definitions(SDL2 PUBLIC SDL2)
+project(demo)
 
-add_subdirectory(src soft)
-add_subdirectory(example)
+add_executable(${PROJECT_NAME} demo.c)
+target_link_libraries(${PROJECT_NAME} PUBLIC soft)
+
+if (LINUX)
+
+    target_link_options(
+        ${PROJECT_NAME} PRIVATE 
+        
+        -static-libgcc 
+        -static-libstdc++
+    )
+
+    set_target_properties(demo PROPERTIES SUFFIX ".out")
+
+endif()
+
+if (WIN32)
+
+    target_compile_options(
+        ${PROJECT_NAME} PRIVATE 
+        
+        -mwindows
+    )
+
+    target_link_options(
+        ${PROJECT_NAME} PRIVATE 
+        
+        -static
+    )
+
+    set_target_properties(demo PROPERTIES SUFFIX ".exe")
+
+endif()
+
+if (APPLE)
+
+    target_link_libraries(
+        ${PROJECT_NAME} 
+        
+        "-framework IOKit"
+    )
+
+    target_link_libraries(
+        ${PROJECT_NAME} 
+        
+        "-framework Cocoa"
+    )
+
+    set_target_properties(demo PROPERTIES SUFFIX ".app")
+
+endif()

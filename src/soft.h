@@ -7,15 +7,12 @@
 // - Version 1.0 (Current):
 //      > Release date: 
 // ---------------------------------------------------------------------------------
-// Macro Definitions:
-// - SOFT_DISABLE_VERBOSITY - Disables logging.
-//      Add this macro if you want to get rid of the info / warning / error logging.
-// ---------------------------------------------------------------------------------
 // Sections:
 // - SOFT_INCLUDES;
 // - SOFT_MACROS;
 // - SOFT_TYPEDEFS;
 // - SOFT_TYPEDEFS_ENUMS;
+// - SOFT_FUNC_CONFIG;
 // - SOFT_FUNC_WINDOW;
 // - SOFT_FUNC_EVENTS;
 // - SOFT_FUNC_INPUT;
@@ -23,8 +20,11 @@
 // - SOFT_FUNC_SHAPES;
 // - SOFT_FUNC_LOGGING;
 // - SOFT_FUNC_TEXT;
-// - SOFT_MACROS_COLOR
-// - SOFT_FUNC_COLOR
+// - SOFT_MACROS_COLOR;
+// - SOFT_FUNC_COLOR;
+// - SOFT_FUNC_TIME;
+// - SOFT_MACROS_MATH;
+// - SOFT_FUNC_MATH;
 // ---------------------------------------------------------------------------------
 // External Dependencies:
 // - SDL2: https://github.com/libsdl-org/SDL.git
@@ -101,12 +101,24 @@
 #pragma region SOFT_TYPEDEFS
 // ------------------------------------------------------
 
-typedef uint32_t Pixel;
-typedef struct { uint8_t r; uint8_t g; uint8_t b; uint8_t a; } Color;
-typedef struct { int x; int y; } iVec2;
-typedef struct { iVec2 position; iVec2 size; } Rect;
-typedef struct { iVec2 position; int r; } Circle;
-typedef struct { iVec2 a; iVec2 b; } Line;
+typedef uint8_t                  u8;
+typedef uint16_t                 u16;
+typedef uint32_t                 u32;
+typedef int8_t                   i8;
+typedef int16_t                  i16;
+typedef int                      i32;
+typedef float                    f32;
+typedef double                   d32;
+typedef char*                    string;
+typedef u32                      Pixel;
+typedef Pixel*                      PixelBuffer;
+typedef struct { i32 x; i32 y; } iVec2;
+
+typedef struct { u8 r; u8 g; u8 b; u8 a; }                                  Color;
+typedef struct { iVec2 position; iVec2 size; }                              Rect;
+typedef struct { iVec2 position; i32 r; }                                   Circle;
+typedef struct { iVec2 a; iVec2 b; }                                        Line;
+typedef struct { f32 initial_time; f32 current_time; bool finished; }       Timer;
 
 // ------------------------------------------------------
 #pragma endregion
@@ -126,6 +138,8 @@ typedef enum {
 } softConfigFlags;
 
 typedef enum {
+    // Section: ASCII TABLE
+
     KEY_NULL = 0,
 
     KEY_BACKSPACE = 8,
@@ -234,7 +248,14 @@ typedef enum {
     KEY_RCUB,           // Key: }
     KEY_TILDE,          // Key: ~
 
-    KEY_DEL             // Key: DEL
+    KEY_DEL,            // Key: DEL
+
+    // Section: EXTENDED LIST
+
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_UP,
+    KEY_DOWN
 } softKeyCode;
 
 typedef enum {
@@ -254,15 +275,25 @@ typedef enum {
 // ------------------------------------------------------
 
 // ------------------------------------------------------
+#pragma region SOFT_FUNC_CONFIG
+// ------------------------------------------------------
+
+SAPI void softAlphaBlendState(bool state);
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
 #pragma region SOFT_FUNC_WINDOW
 // ------------------------------------------------------
 
-SAPI int softInit(int width, int height, const char* title);
-SAPI int softInitPlatform(void);
-SAPI int softInitWindow(int width, int height, const char* title);
-SAPI int softInitRenderer(void);
-SAPI int softInitRenderTexture(int width, int height);
-SAPI int softInitPixelData(void);
+SAPI i32 softInit(i32 width, i32 height, const string title);
+SAPI i32 softInitPlatform(void);
+SAPI i32 softInitWindow(i32 width, i32 height, const string title);
+SAPI i32 softInitRenderer(void);
+SAPI i32 softInitRenderTexture(i32 width, i32 height);
+SAPI i32 softInitPixelData(void);
 
 SAPI void softClose(void);
 SAPI void softClosePlatform(void);
@@ -271,8 +302,6 @@ SAPI void softCloseRenderer(void);
 SAPI void softUnloadRenderTexture(void);
 SAPI void softUnloadPixelData(void);
 
-SAPI void softSetConfigFlags(softConfigFlags flags);
-SAPI void softSetWindowTitle(const char* title);
 SAPI bool softWindowShoulClose(void);
 SAPI void softCloseCallback(void);
 
@@ -280,6 +309,9 @@ SAPI iVec2 softGetWindowSize(void);
 SAPI iVec2 softGetWindowCenter(void);
 SAPI iVec2 softGetDisplaySize(void);
 SAPI iVec2 softGetDisplayCenter(void);
+
+SAPI void softSetConfigFlags(softConfigFlags flags);
+SAPI void softSetWindowTitle(const string title);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -314,7 +346,6 @@ SAPI bool softMouseButtonReleased(softMouseButtons button);
 SAPI bool softMouseButtonDown(softMouseButtons button);
 SAPI bool softMouseButtonUp(softMouseButtons button);
 
-
 // ------------------------------------------------------
 #pragma endregion
 // ------------------------------------------------------
@@ -324,7 +355,7 @@ SAPI bool softMouseButtonUp(softMouseButtons button);
 // ------------------------------------------------------
 
 SAPI void softClearBuffer(void);
-SAPI void softClearBufferColor(Color color);
+SAPI void softClearBufferColor(Pixel pixel);
 SAPI void softBlit(void);
 
 // ------------------------------------------------------
@@ -335,14 +366,14 @@ SAPI void softBlit(void);
 #pragma region SOFT_FUNC_SHAPES
 // ------------------------------------------------------
 
-SAPI void softDrawRectangle(Rect rect, Color color);
-SAPI void softDrawRectangleLines(Rect rect, Color color);
-SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Color color);
+SAPI void softDrawRectangle(Rect rect, Pixel pixel);
+SAPI void softDrawRectangleLines(Rect rect, Pixel pixel);
+SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Pixel pixel);
 
-SAPI void softDrawLine(Line line, Color color);
+SAPI void softDrawLine(Line line, Pixel pixel);
 
-SAPI void softDrawCircle(Circle circle, Color color);
-SAPI void softDrawCircleLines(Circle circle, Color color);
+SAPI void softDrawCircle(Circle circle, Pixel pixel);
+SAPI void softDrawCircleLines(Circle circle, Pixel pixel);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -352,10 +383,10 @@ SAPI void softDrawCircleLines(Circle circle, Color color);
 #pragma region SOFT_FUNC_LOGGING
 // ------------------------------------------------------
 
-SAPI void softLog(SoftLogLevel log_level, const char *restrict txt, ...);
-SAPI void softLogInfo(const char *restrict txt, ...);
-SAPI void softLogWarning(const char *restrict txt, ...);
-SAPI void softLogError(const char *restrict txt, ...);
+SAPI void softLog(SoftLogLevel log_level, const string restrict txt, ...);
+SAPI void softLogInfo(const string restrict txt, ...);
+SAPI void softLogWarning(const string restrict txt, ...);
+SAPI void softLogError(const string restrict txt, ...);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -365,9 +396,9 @@ SAPI void softLogError(const char *restrict txt, ...);
 #pragma region SOFT_FUNC_TEXT
 // ------------------------------------------------------
 
-SAPI const char* softTextFormat(const char *restrict txt, ...);
-SAPI const bool softTextEmpty(const char *restrict txt, ...);
-SAPI const int softTextLength(const char *restrict txt);
+SAPI const string softTextFormat(const string restrict txt, ...);
+SAPI const bool softTextEmpty(const string restrict txt, ...);
+SAPI const i32 softTextLength(const string restrict txt);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -377,13 +408,14 @@ SAPI const int softTextLength(const char *restrict txt);
 #pragma region SOFT_MACROS_COLOR
 // ------------------------------------------------------
 
-#define RED (Color) { 255, 0, 0, 255 }
-#define GREEN (Color) { 0, 255, 0, 255 }
-#define BLUE (Color) { 0, 0, 255, 255 }
-#define YELLOW (Color) { 255, 255, 0, 255 }
-#define PINK (Color) { 255, 0, 255, 255 }
-#define WHITE (Color) { 255, 255, 255, 255 }
-#define BLACK (Color) { 0, 0, 0, 255 }
+#define RED 0xFF0000FF
+#define GREEN 0xFF00FF00
+#define BLUE 0xFFFF0000
+#define YELLOW 0xFF00FFFF
+#define PINK 0xFFFF00FF
+#define WHITE 0xFFFFFFFF
+#define BLACK 0xFF000000
+#define BLANK 0x00000000
 
 // ------------------------------------------------------
 #pragma endregion
@@ -393,7 +425,7 @@ SAPI const int softTextLength(const char *restrict txt);
 #pragma region SOFT_FUNC_COLOR
 // ------------------------------------------------------
 
-SAPI Pixel softGetPixelColor(int x, int y);
+SAPI Pixel softGetPixelColor(i32 x, i32 y);
 
 SAPI Pixel softColorToPixel(Color color);
 SAPI Color softPixelToColor(Pixel pixel);
@@ -401,8 +433,69 @@ SAPI Color softPixelToColor(Pixel pixel);
 SAPI bool softColorCompare(Color a, Color b);
 SAPI bool softPixelColorCompare(Pixel a, Pixel b);
 
-SAPI Color softMixColor(Color base_color, Color return_color, uint16_t alpha);
-SAPI Color softColorFade(Color color, float factor);
+SAPI Color softMixColor(Color base_color, Color return_color, u8 alpha);
+SAPI Pixel softMixPixels(Pixel base_pixel, Pixel return_pixel, u8 alpha);
+SAPI Color softColorFade(Color color, f32 factor);
+SAPI Pixel softPixelFade(Pixel pixel, f32 factor);
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_FUNC_TIME
+// ------------------------------------------------------
+
+SAPI f32 softDeltaTime(void);
+SAPI f32 softTime(void);
+SAPI i32 softFPS(void);
+SAPI void softTargetFPS(u32 framerate);
+SAPI void softWait(f32 seconds);
+
+SAPI Timer softTimer(const f32 TIME);
+SAPI void softTimerProceed(Timer* timer, f32 delta_time);
+SAPI bool softTimerFinished(Timer* timer);
+SAPI void softTimerRestart(Timer* timer);
+SAPI void softTimerReset(Timer* timer, f32 time);
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_MACROS_MATH
+// ------------------------------------------------------
+
+#define PI 3.1415926535
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_FUNC_MATH
+// ------------------------------------------------------
+
+SAPI f32 softLerpF(f32 start, f32 end, f32 t);
+SAPI f32 softPowF(f32 a, f32 n);
+SAPI f32 softSqrF(f32 a);
+SAPI f32 softSqrtF(f32 a);
+
+SAPI i32 softLerpI(i32 start, i32 end, f32 t);
+SAPI i32 softPowI(i32 a, i32 n);
+SAPI i32 softSqrI(i32 a);
+SAPI i32 softSqrtI(i32 a);
+
+SAPI iVec2 softZero(void);
+SAPI iVec2 softOne(void);
+SAPI iVec2 softUp(void);
+SAPI iVec2 softDown(void);
+SAPI iVec2 softLeft(void);
+SAPI iVec2 softRight(void);
+SAPI iVec2 softVectorAdd(iVec2 a, iVec2 b);
+SAPI iVec2 softVectorSub(iVec2 a, iVec2 b);
+SAPI iVec2 softVectorMult(iVec2 a, iVec2 b);
+SAPI iVec2 softVectorLerp(iVec2 start, iVec2 end, f32 t);
 
 // ------------------------------------------------------
 #pragma endregion
