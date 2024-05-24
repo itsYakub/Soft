@@ -20,12 +20,13 @@
 // - SOFT_API_FUNC_EVENTS;
 // - SOFT_API_FUNC_INPUT;
 // - SOFT_API_FUNC_RENDER;
-// - SOFT_API_FUNC_SHAPES;
+// - SOFT_API_FUNC_DRAW;
 // - SOFT_API_FUNC_LOGGING;
 // - SOFT_API_FUNC_TEXT;
 // - SOFT_API_FUNC_COLOR;
 // - SOFT_API_FUNC_TIME;
 // - SOFT_API_FUNC_MATH;
+// - SOFT_API_FUNC_IMAGE;
 // ---------------------------------------------------------------------------------
 // External Dependencies:
 // - SDL2: https://github.com/libsdl-org/SDL.git
@@ -93,6 +94,9 @@
 #include "SDL_render.h"
 #include "SDL_pixels.h"
 #include "SDL_version.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 // ------------------------------------------------------
 #pragma endregion
@@ -221,12 +225,16 @@ internal void softSetPixel(i32 x, i32 y, Pixel pixel) {
         return; 
     }
 
-    if(CORE.Config.alpha_blend) {
+    if(CORE.Config.alpha_blend && !softPixelColorCompare(pixel, BLANK)) {
         pixel = softMixPixels(
             softGetPixelColor(x, y),
             pixel, 
             softPixelToColor(pixel).a
         );
+    }
+
+    if(softPixelColorCompare(pixel, BLANK)) {
+        pixel = softGetPixelColor(x, y);
     }
 
     CORE.Render.data[y * CORE.Window.display_size.x + x] = pixel;
@@ -323,6 +331,7 @@ internal softKeyCode keycode_to_scancode[] = {
 
     0, // SDL_SCANCODE_END
     0, // SDL_SCANCODE_PAGEDOWN
+
     KEY_RIGHT, 
     KEY_LEFT, 
     KEY_DOWN, 
@@ -375,7 +384,6 @@ SAPI void softAlphaBlendState(bool state) {
 #pragma endregion
 // ------------------------------------------------------
 
-
 // ------------------------------------------------------
 #pragma region SOFT_API_FUNC_WINDOW
 // ------------------------------------------------------
@@ -385,7 +393,7 @@ SAPI i32 softInit(i32 width, i32 height, const string title) {
     softInitWindow(width, height, title);
     softInitRenderer();
     softInitRenderTexture(softGetDisplaySize().x, softGetDisplaySize().y);
-    softInitPixelData();
+    softInitPixelBuffer();
 
     softLogInfo("Initialization process overview:");
     softLogInfo("   > Window state: %s", CORE.Window.valid ? "OK" : "FAIL");
@@ -554,8 +562,8 @@ SAPI i32 softInitRenderTexture(i32 width, i32 height) {
     return SOFT_SUCCESS;
 }
 
-SAPI i32 softInitPixelData(void) {
-    softLogInfo("Initializing Render Data.");
+SAPI i32 softInitPixelBuffer(void) {
+    softLogInfo("Initializing Pixel Buffer.");
 
     if(!CORE.Window.window || !CORE.Render.renderer || !CORE.Render.texture) {
         softLogError("%s", strerror(errno));
@@ -591,7 +599,7 @@ SAPI i32 softInitPixelData(void) {
 SAPI void softClose(void) {
     softLogInfo("Closing Soft v.%s", SOFT_VERSION);
 
-    softUnloadPixelData();
+    softUnloadPixelBuffer();
     softUnloadRenderTexture();
     softCloseRenderer();
     softCloseWindow();
@@ -644,14 +652,14 @@ SAPI void softUnloadRenderTexture(void) {
     CORE.Render.texture_valid = false;
 }
 
-SAPI void softUnloadPixelData(void) {
+SAPI void softUnloadPixelBuffer(void) {
     if(!CORE.Render.data) {
-        softLogWarning("Pixel Data already unloaded. Returning...");
+        softLogWarning("Pixel Buffer already unloaded. Returning...");
 
         return;
     }
 
-    softLogInfo("Unloading render data.");
+    softLogInfo("Unloading Pixel Buffer.");
 
     SDL_free(CORE.Render.data);
     CORE.Render.data_valid = false;
@@ -975,7 +983,7 @@ SAPI void softBlit(void) {
 // ------------------------------------------------------
 
 // ------------------------------------------------------
-#pragma region SOFT_API_FUNC_SHAPES
+#pragma region SOFT_API_FUNC_DRAW
 // ------------------------------------------------------
 
 SAPI void softDrawRectangle(Rect rect, Pixel pixel) {
@@ -1087,6 +1095,36 @@ SAPI void softDrawCircleLines(Circle circle, Pixel pixel) {
             err += ++x * 2 + 1;
         }
     } while (x < 0);
+}
+
+SAPI void softDrawImage(Image* image, iVec2 position, Pixel tint) {
+    for(i32 y = 0; y < image->size.y; y++) {
+        for(i32 x = 0; x < image->size.x; x++) {
+            Pixel pixel = softGetPixelFromBuffer(
+                image->data, 
+                (iVec2) { x, y }, 
+                image->size
+            );
+
+            // TODO(yakub):
+            // Add the way to tint the image based on the `tint` parameter.
+
+            softSetPixel(
+                position.x + x, 
+                position.y + y, 
+                pixel
+            );
+        }
+    }
+}
+
+
+SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, Pixel tint) {
+    softDrawImage(
+        image, 
+        (iVec2) { position.x - pivot.x, position.y - pivot.y }, 
+        tint
+    );
 }
 
 // ------------------------------------------------------
@@ -1213,6 +1251,14 @@ SAPI Pixel softGetPixelColor(i32 x, i32 y) {
     }
 
     return CORE.Render.data[y * CORE.Window.display_size.x + x];
+}
+
+SAPI Pixel softGetPixelFromBuffer(PixelBuffer buffer, iVec2 position, iVec2 size) {
+    if(position.x < 0 || position.x >= size.x || position.y < 0 || position.y >= size.y) {
+        return BLACK;
+    }
+
+    return buffer[position.y * size.x + position.x];
 }
 
 SAPI Pixel softColorToPixel(Color color) {
@@ -1415,15 +1461,15 @@ SAPI f32 softLerpF(f32 start, f32 end, f32 t) {
 }
 
 SAPI f32 softPowF(f32 a, f32 n) {
-    return SDL_pow(a, n);
+    return pow(a, n);
 }
 
 SAPI f32 softSqrF(f32 a) {
-    return SDL_pow(a, 2);
+    return pow(a, 2);
 }
 
 SAPI f32 softSqrtF(f32 a) {
-    return SDL_sqrt(a);
+    return sqrt(a);
 }
 
 SAPI i32 softLerpI(i32 start, i32 end, f32 t) {
@@ -1431,40 +1477,38 @@ SAPI i32 softLerpI(i32 start, i32 end, f32 t) {
 }
 
 SAPI i32 softPowI(i32 a, i32 n) {
-    return SDL_pow(a, n);
+    return pow(a, n);
 }
 
 SAPI i32 softSqrI(i32 a) {
-    return SDL_pow(a, 2);
+    return pow(a, 2);
 }
 
 SAPI i32 softSqrtI(i32 a) {
-    return SDL_sqrt(a);
+    return sqrt(a);
 }
 
-
-
-SAPI iVec2 softZero(void) {
+SAPI iVec2 softVectorZero(void) {
     return (iVec2) { 0.0f, 0.0f };
 }
 
-SAPI iVec2 softOne(void) {
+SAPI iVec2 softVectorOne(void) {
     return (iVec2) { 1.0f, 1.0f };
 }
 
-SAPI iVec2 softUp(void) {
+SAPI iVec2 softVectorUp(void) {
     return (iVec2) { 0.0f, -1.0f };
 }
 
-SAPI iVec2 softDown(void) {
+SAPI iVec2 softVectorDown(void) {
     return (iVec2) { 0.0f, 1.0f };
 }
 
-SAPI iVec2 softLeft(void) {
+SAPI iVec2 softVectorLeft(void) {
     return (iVec2) { -1.0f, 0.0f };
 }
 
-SAPI iVec2 softRight(void) {
+SAPI iVec2 softVectorRight(void) {
     return (iVec2) { 1.0f, 0.0f };
 }
 
@@ -1480,11 +1524,132 @@ SAPI iVec2 softVectorMult(iVec2 a, iVec2 b) {
     return (iVec2) { a.x * b.x, a.y * b.y };
 }
 
+SAPI iVec2 softVectorMultFactor(iVec2 a, f32 factor) {
+    return (iVec2) { a.x * factor, a.y * factor };
+}
+
+SAPI iVec2 softVectorDiv(iVec2 a, iVec2 b) {
+    return (iVec2) { a.x / b.x, a.y / b.y };
+}
+
+SAPI iVec2 softVectorDivFactor(iVec2 a, f32 factor) {
+    return (iVec2) { a.x / factor, a.y / factor };
+}
+
 SAPI iVec2 softVectorLerp(iVec2 start, iVec2 end, f32 t) {
     return (iVec2) {
         softLerpI(start.x, end.x, t),
         softLerpI(start.y, end.y, t)
     };
+}
+
+SAPI Color softColorZero(void) {
+    return (Color) { 0, 0, 0, 0 };
+}
+
+SAPI Color softColorOne(void) {
+    return (Color) { 1, 1, 1, 1 };
+}
+
+SAPI Color softColorAdd(Color a, Color b) {
+    return (Color) { 
+        a.r + b.r, 
+        a.g + b.g, 
+        a.b + b.b, 
+        a.a + b.a
+    };
+}
+
+SAPI Color softColorSub(Color a, Color b) {
+    return (Color) { 
+        a.r - b.r, 
+        a.g - b.g, 
+        a.b - b.b, 
+        a.a - b.a
+    };
+}
+
+SAPI Color softColorMult(Color a, Color b) {
+    return (Color) { 
+        a.r * b.r, 
+        a.g * b.g, 
+        a.b * b.b, 
+        a.a * b.a
+    };
+}
+
+SAPI Color softColorDiv(Color a, Color b) {
+    return (Color) { 
+        a.r / b.r, 
+        a.g / b.g, 
+        a.b / b.b, 
+        a.a / b.a
+    };
+}
+
+SAPI Color softColorLerp(Color start, Color end, f32 t) {
+    return (Color) { 
+        softLerpI(start.r, end.r, t), 
+        softLerpI(start.g, end.g, t), 
+        softLerpI(start.b, end.b, t), 
+        softLerpI(start.a, end.a, t)
+    };
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_IMAGE
+// ------------------------------------------------------
+
+SAPI Image softLoadImage(const string path) {
+    Image result = { 0 };
+
+    stbi_uc* data = stbi_load(
+        path, 
+        &result.size.x, 
+        &result.size.y, 
+        &result.channels, 
+        STBI_rgb_alpha
+    );
+
+    if(!data) {
+        softLogError("Image loading failure: %s", stbi_failure_reason());
+        return result;
+    }
+
+    result.data = (PixelBuffer)calloc(result.size.x * result.size.y, sizeof(Pixel));
+
+    for(i32 index_source = 0, index_result = 0; index_source < result.size.x * result.size.y * result.channels * sizeof(stbi_uc) && index_result < result.size.x * result.size.y * sizeof(Pixel); index_result++) {
+        Color pixel_color = { 0 };
+        pixel_color.r = data[index_source++];
+        pixel_color.g = data[index_source++];
+        pixel_color.b = data[index_source++];
+        pixel_color.a = data[index_source++];
+
+        result.data[index_result] = softColorToPixel(pixel_color);
+    }
+
+    stbi_image_free(data);
+
+    softLogInfo("Image loaded successfully:");
+    softLogInfo("   > resolution: %ix%ipx", result.size.x, result.size.y);
+    softLogInfo("   > channels: %i", result.channels);
+    softLogInfo("   > size: %i bytes", result.size.x * result.size.y * sizeof(Pixel));
+
+    return result;
+}
+
+SAPI void softUnloadImage(Image* image) {
+    if(!image->data) {
+        softLogWarning("Trying to unload invalid image data.");
+        return;
+    }
+
+    free(image->data);
+    softLogInfo("Image unloaded successfully.");
 }
 
 // ------------------------------------------------------

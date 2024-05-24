@@ -17,7 +17,7 @@
 // - SOFT_FUNC_EVENTS;
 // - SOFT_FUNC_INPUT;
 // - SOFT_FUNC_RENDER;
-// - SOFT_FUNC_SHAPES;
+// - SOFT_FUNC_DRAW;
 // - SOFT_FUNC_LOGGING;
 // - SOFT_FUNC_TEXT;
 // - SOFT_MACROS_COLOR;
@@ -25,6 +25,7 @@
 // - SOFT_FUNC_TIME;
 // - SOFT_MACROS_MATH;
 // - SOFT_FUNC_MATH;
+// - SOFT_FUNC_IMAGE;
 // ---------------------------------------------------------------------------------
 // External Dependencies:
 // - SDL2: https://github.com/libsdl-org/SDL.git
@@ -111,7 +112,7 @@ typedef float                    f32;
 typedef double                   d32;
 typedef char*                    string;
 typedef u32                      Pixel;
-typedef Pixel*                      PixelBuffer;
+typedef Pixel*                   PixelBuffer;
 typedef struct { i32 x; i32 y; } iVec2;
 
 typedef struct { u8 r; u8 g; u8 b; u8 a; }                                  Color;
@@ -119,6 +120,7 @@ typedef struct { iVec2 position; iVec2 size; }                              Rect
 typedef struct { iVec2 position; i32 r; }                                   Circle;
 typedef struct { iVec2 a; iVec2 b; }                                        Line;
 typedef struct { f32 initial_time; f32 current_time; bool finished; }       Timer;
+typedef struct { PixelBuffer data; iVec2 size; i32 channels; }                      Image;
 
 // ------------------------------------------------------
 #pragma endregion
@@ -293,14 +295,14 @@ SAPI i32 softInitPlatform(void);
 SAPI i32 softInitWindow(i32 width, i32 height, const string title);
 SAPI i32 softInitRenderer(void);
 SAPI i32 softInitRenderTexture(i32 width, i32 height);
-SAPI i32 softInitPixelData(void);
+SAPI i32 softInitPixelBuffer(void);
 
 SAPI void softClose(void);
 SAPI void softClosePlatform(void);
 SAPI void softCloseWindow(void);
 SAPI void softCloseRenderer(void);
 SAPI void softUnloadRenderTexture(void);
-SAPI void softUnloadPixelData(void);
+SAPI void softUnloadPixelBuffer(void);
 
 SAPI bool softWindowShoulClose(void);
 SAPI void softCloseCallback(void);
@@ -363,7 +365,7 @@ SAPI void softBlit(void);
 // ------------------------------------------------------
 
 // ------------------------------------------------------
-#pragma region SOFT_FUNC_SHAPES
+#pragma region SOFT_FUNC_DRAW
 // ------------------------------------------------------
 
 SAPI void softDrawRectangle(Rect rect, Pixel pixel);
@@ -374,6 +376,9 @@ SAPI void softDrawLine(Line line, Pixel pixel);
 
 SAPI void softDrawCircle(Circle circle, Pixel pixel);
 SAPI void softDrawCircleLines(Circle circle, Pixel pixel);
+
+SAPI void softDrawImage(Image* image, iVec2 position, Pixel tint);
+SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, Pixel tint);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -426,6 +431,7 @@ SAPI const i32 softTextLength(const string restrict txt);
 // ------------------------------------------------------
 
 SAPI Pixel softGetPixelColor(i32 x, i32 y);
+SAPI Pixel softGetPixelFromBuffer(PixelBuffer buffer, iVec2 position, iVec2 size);
 
 SAPI Pixel softColorToPixel(Color color);
 SAPI Color softPixelToColor(Pixel pixel);
@@ -486,16 +492,38 @@ SAPI i32 softPowI(i32 a, i32 n);
 SAPI i32 softSqrI(i32 a);
 SAPI i32 softSqrtI(i32 a);
 
-SAPI iVec2 softZero(void);
-SAPI iVec2 softOne(void);
-SAPI iVec2 softUp(void);
-SAPI iVec2 softDown(void);
-SAPI iVec2 softLeft(void);
+SAPI iVec2 softVectorZero(void);
+SAPI iVec2 softVectorOne(void);
+SAPI iVec2 softVectorUp(void);
+SAPI iVec2 softVectorDown(void);
+SAPI iVec2 softVectorLeft(void);
 SAPI iVec2 softRight(void);
 SAPI iVec2 softVectorAdd(iVec2 a, iVec2 b);
 SAPI iVec2 softVectorSub(iVec2 a, iVec2 b);
 SAPI iVec2 softVectorMult(iVec2 a, iVec2 b);
+SAPI iVec2 softVectorMultFactor(iVec2 a, f32 factor);
+SAPI iVec2 softVectorDiv(iVec2 a, iVec2 b);
+SAPI iVec2 softVectorDivFactor(iVec2 a, f32 factor);
 SAPI iVec2 softVectorLerp(iVec2 start, iVec2 end, f32 t);
+
+SAPI Color softColorZero(void);
+SAPI Color softColorOne(void);
+SAPI Color softColorAdd(Color a, Color b);
+SAPI Color softColorSub(Color a, Color b);
+SAPI Color softColorMult(Color a, Color b);
+SAPI Color softColorDiv(Color a, Color b);
+SAPI Color softColorLerp(Color start, Color end, f32 t);
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_FUNC_IMAGE
+// ------------------------------------------------------
+
+SAPI Image softLoadImage(const string path);
+SAPI void softUnloadImage(Image* image);
 
 // ------------------------------------------------------
 #pragma endregion

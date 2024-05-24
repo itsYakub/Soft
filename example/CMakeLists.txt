@@ -38,7 +38,6 @@ project(
     LANGUAGES C
 )
 
-
 project(demo)
 
 add_executable(${PROJECT_NAME} demo.c)
