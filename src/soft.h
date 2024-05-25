@@ -272,6 +272,13 @@ typedef enum {
     LOG_ERROR
 } SoftLogLevel;
 
+typedef enum {
+    FLIP_DEFAULT = 0,
+    FLIP_H,
+    FLIP_V,
+    FLIP_HV
+} SoftImageFlip;
+
 // ------------------------------------------------------
 #pragma endregion
 // ------------------------------------------------------
@@ -378,7 +385,7 @@ SAPI void softDrawCircle(Circle circle, Pixel pixel);
 SAPI void softDrawCircleLines(Circle circle, Pixel pixel);
 
 SAPI void softDrawImage(Image* image, iVec2 position, Pixel tint);
-SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, Pixel tint);
+SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, SoftImageFlip image_flip, Pixel tint);
 
 // ------------------------------------------------------
 #pragma endregion

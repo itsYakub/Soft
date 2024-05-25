@@ -1098,33 +1098,104 @@ SAPI void softDrawCircleLines(Circle circle, Pixel pixel) {
 }
 
 SAPI void softDrawImage(Image* image, iVec2 position, Pixel tint) {
-    for(i32 y = 0; y < image->size.y; y++) {
-        for(i32 x = 0; x < image->size.x; x++) {
-            Pixel pixel = softGetPixelFromBuffer(
-                image->data, 
-                (iVec2) { x, y }, 
-                image->size
-            );
-
-            // TODO(yakub):
-            // Add the way to tint the image based on the `tint` parameter.
-
-            softSetPixel(
-                position.x + x, 
-                position.y + y, 
-                pixel
-            );
-        }
-    }
+    softDrawImageExtanded(image, position, softVectorZero(), FLIP_DEFAULT, tint);
 }
 
+SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, SoftImageFlip image_flip, Pixel tint) {
+    switch (image_flip) {
+        case FLIP_DEFAULT: {
+            for(i32 y = 0; y < image->size.y; y++) {
+                for(i32 x = 0; x < image->size.x; x++) {
+                    softSetPixel(
+                        position.x + x - pivot.x, 
+                        position.y + y - pivot.y, 
+                        softGetPixelFromBuffer(
+                            image->data, 
+                            (iVec2) { x, y }, 
+                            image->size
+                        )
+                    );
+                }
+            }
 
-SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, Pixel tint) {
-    softDrawImage(
-        image, 
-        (iVec2) { position.x - pivot.x, position.y - pivot.y }, 
-        tint
-    );
+            break;
+        }
+
+        case FLIP_H: {
+            for(i32 y = 0; y < image->size.y; y++) {
+                for(i32 x = image->size.x - 1, pos_x = 0; x >= 0; x--, pos_x++) {
+                    softSetPixel(
+                        position.x + pos_x - pivot.x, 
+                        position.y + y - pivot.y, 
+                        softGetPixelFromBuffer(
+                            image->data, 
+                            (iVec2) { x, y }, 
+                            image->size
+                        )
+                    );
+                }
+            }
+            
+            break;
+        }
+
+        case FLIP_V: {
+            for(i32 y = image->size.y - 1, pos_y = 0; y >= 0; y--, pos_y++) {
+                for(i32 x = 0; x < image->size.x; x++) {
+                    softSetPixel(
+                        position.x + x - pivot.x, 
+                        position.y + pos_y - pivot.y, 
+                        softGetPixelFromBuffer(
+                            image->data, 
+                            (iVec2) { x, y }, 
+                            image->size
+                        )
+                    );
+                }
+            }
+            
+            break;
+        }
+
+        case FLIP_HV: {
+            for(i32 y = image->size.y - 1, pos_y = 0; y >= 0; y--, pos_y++) {
+                for(i32 x = image->size.x - 1, pos_x = 0; x >= 0; x--, pos_x++) {
+                    softSetPixel(
+                        position.x + pos_x - pivot.x, 
+                        position.y + pos_y - pivot.y, 
+                        softGetPixelFromBuffer(
+                            image->data, 
+                            (iVec2) { x, y }, 
+                            image->size
+                        )
+                    );
+                }
+            }
+            
+            break;
+        }
+
+        default: {
+            softLogWarning("Invalid flip value: %i. Defaulting to value: 0 (FLIP_DEFAULT)...", image_flip);
+
+            for(i32 y = 0; y < image->size.y; y++) {
+                for(i32 x = 0; x < image->size.x; x++) {
+                    softSetPixel(
+                        position.x + x - pivot.x, 
+                        position.y + y - pivot.y, 
+                        softGetPixelFromBuffer(
+                            image->data, 
+                            (iVec2) { x, y }, 
+                            image->size
+                        )
+                    );
+                }
+            }
+
+            break;
+        }
+
+    }
 }
 
 // ------------------------------------------------------
