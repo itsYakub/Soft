@@ -1,15 +1,15 @@
-# ---------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------
 # Soft - Real-Time CPU Renderer
-# ---------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------
 # Author: https://github.com/itsYakub
-# ---------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------
 # Version history:
 # - Version 1.0 (Current):
 #      > Release date: 
-# ---------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------
 # External Dependencies:
 # - SDL2: https://github.com/libsdl-org/SDL.git
-# ---------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------
 # LICENCE:
 # Copyright (c) 2024 Jakub Oleksiak <yakubofficialmail@gmail.com>
 # 
@@ -30,64 +30,76 @@
 # DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
-# ---------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------
 
-project(
-    demo 
-    DESCRIPTION "Demonstration of Soft Graphics Library"
-    LANGUAGES C
+# -----------------------------------------------------------------------------------------------
+# EXAMPLES - list of every example made with soft, stored as variable.
+# -----------------------------------------------------------------------------------------------
+
+set(
+    EXAMPLES
+    demo
+    demo_window
+    demo_image
 )
 
-project(demo)
+# -----------------------------------------------------------------------------------------------
+# Method of building several executables can be found here:
+# https://stackoverflow.com/questions/69517191/cmake-create-executable-for-all-cpp-file-in-folder
+# -----------------------------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} demo.c)
-target_link_libraries(${PROJECT_NAME} PUBLIC soft)
+foreach(exec IN LISTS EXAMPLES)
 
-if (LINUX)
+    add_executable(${exec} ${exec}.c)
+    target_link_libraries(${exec} PUBLIC soft)
 
-    target_link_options(
-        ${PROJECT_NAME} PRIVATE 
-        
-        -static-libgcc 
-        -static-libstdc++
-    )
+    if (LINUX)
 
-    set_target_properties(demo PROPERTIES SUFFIX ".out")
+        target_link_options(
+            ${exec} PRIVATE 
+            
+            -static-libgcc 
+            -static-libstdc++
+        )
 
-endif()
+        set_target_properties(${exec} PROPERTIES SUFFIX ".out")
 
-if (WIN32)
+    endif()
 
-    target_compile_options(
-        ${PROJECT_NAME} PRIVATE 
-        
-        -mwindows
-    )
+    if (WIN32)
 
-    target_link_options(
-        ${PROJECT_NAME} PRIVATE 
-        
-        -static
-    )
+        target_compile_options(
+            ${exec} PRIVATE 
+            
+            -mwindows
+        )
 
-    set_target_properties(demo PROPERTIES SUFFIX ".exe")
+        target_link_options(
+            ${exec} PRIVATE 
+            
+            -static
+        )
 
-endif()
+        set_target_properties(${exec} PROPERTIES SUFFIX ".exe")
 
-if (APPLE)
+    endif()
 
-    target_link_libraries(
-        ${PROJECT_NAME} 
-        
-        "-framework IOKit"
-    )
+    if (APPLE)
 
-    target_link_libraries(
-        ${PROJECT_NAME} 
-        
-        "-framework Cocoa"
-    )
+        target_link_libraries(
+            ${exec}
+            
+            "-framework IOKit"
+        )
 
-    set_target_properties(demo PROPERTIES SUFFIX ".app")
+        target_link_libraries(
+            ${exec}
+            
+            "-framework Cocoa"
+        )
 
-endif()
+        set_target_properties(${exec} PROPERTIES SUFFIX ".app")
+
+    endif()    
+
+endforeach()

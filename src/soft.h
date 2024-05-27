@@ -257,7 +257,31 @@ typedef enum {
     KEY_LEFT,
     KEY_RIGHT,
     KEY_UP,
-    KEY_DOWN
+    KEY_DOWN,
+    KEY_CAPS,
+    KEY_LSHIFT,
+    KEY_RSHIFT,
+    KEY_LALT,
+    KEY_RALT,
+    KEY_LCTRL,
+    KEY_RCTRL,
+    KEY_ENTER,
+    KEY_HOME,
+    KEY_NUMLOCK,
+
+    KEY_F1,
+    KEY_F2,
+    KEY_F3,
+    KEY_F4,
+    KEY_F5,
+    KEY_F6,
+    KEY_F7,
+    KEY_F8,
+    KEY_F9,
+    KEY_F10,
+    KEY_F11,
+    KEY_F12,
+
 } softKeyCode;
 
 typedef enum {
@@ -301,15 +325,17 @@ SAPI i32 softInit(i32 width, i32 height, const string title);
 SAPI i32 softInitPlatform(void);
 SAPI i32 softInitWindow(i32 width, i32 height, const string title);
 SAPI i32 softInitRenderer(void);
-SAPI i32 softInitRenderTexture(i32 width, i32 height);
-SAPI i32 softInitPixelBuffer(void);
 
 SAPI void softClose(void);
 SAPI void softClosePlatform(void);
 SAPI void softCloseWindow(void);
 SAPI void softCloseRenderer(void);
-SAPI void softUnloadRenderTexture(void);
+
+SAPI i32 softInitDefaultPixelBuffer(void);
 SAPI void softUnloadPixelBuffer(void);
+
+SAPI PixelBuffer softCreatePixelBuffer(i32 width, i32 height);
+SAPI i32 softSetCurrentPixelBuffer(PixelBuffer pixel_buffer);
 
 SAPI bool softWindowShoulClose(void);
 SAPI void softCloseCallback(void);
@@ -377,15 +403,16 @@ SAPI void softBlit(void);
 
 SAPI void softDrawRectangle(Rect rect, Pixel pixel);
 SAPI void softDrawRectangleLines(Rect rect, Pixel pixel);
-SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Pixel pixel);
+SAPI void softDrawRectangleEx(Rect rect, iVec2 pivot, Pixel pixel);
 
 SAPI void softDrawLine(Line line, Pixel pixel);
+SAPI void softDrawLineBezier(iVec2 start, iVec2 end, iVec2 midpoint, i32 resolution, Pixel pixel);
 
 SAPI void softDrawCircle(Circle circle, Pixel pixel);
 SAPI void softDrawCircleLines(Circle circle, Pixel pixel);
 
 SAPI void softDrawImage(Image* image, iVec2 position, Pixel tint);
-SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, SoftImageFlip image_flip, Pixel tint);
+SAPI void softDrawImageEx(Image* image, iVec2 position, iVec2 pivot, SoftImageFlip image_flip, Pixel tint);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -442,9 +469,6 @@ SAPI Pixel softGetPixelFromBuffer(PixelBuffer buffer, iVec2 position, iVec2 size
 
 SAPI Pixel softColorToPixel(Color color);
 SAPI Color softPixelToColor(Pixel pixel);
-
-SAPI bool softColorCompare(Color a, Color b);
-SAPI bool softPixelColorCompare(Pixel a, Pixel b);
 
 SAPI Color softMixColor(Color base_color, Color return_color, u8 alpha);
 SAPI Pixel softMixPixels(Pixel base_pixel, Pixel return_pixel, u8 alpha);
@@ -512,6 +536,7 @@ SAPI iVec2 softVectorMultFactor(iVec2 a, f32 factor);
 SAPI iVec2 softVectorDiv(iVec2 a, iVec2 b);
 SAPI iVec2 softVectorDivFactor(iVec2 a, f32 factor);
 SAPI iVec2 softVectorLerp(iVec2 start, iVec2 end, f32 t);
+SAPI bool softVectorCompare(iVec2 a, iVec2 b);
 
 SAPI Color softColorZero(void);
 SAPI Color softColorOne(void);
@@ -520,6 +545,9 @@ SAPI Color softColorSub(Color a, Color b);
 SAPI Color softColorMult(Color a, Color b);
 SAPI Color softColorDiv(Color a, Color b);
 SAPI Color softColorLerp(Color start, Color end, f32 t);
+SAPI bool softColorCompare(Color a, Color b);
+
+SAPI bool softPixelCompare(Pixel a, Pixel b);
 
 // ------------------------------------------------------
 #pragma endregion
@@ -531,6 +559,17 @@ SAPI Color softColorLerp(Color start, Color end, f32 t);
 
 SAPI Image softLoadImage(const string path);
 SAPI void softUnloadImage(Image* image);
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_FUNC_RESOURCES
+// ------------------------------------------------------
+
+SAPI void softLoadResourceImage(Image* image);
+SAPI void softUnloadResources(void);
 
 // ------------------------------------------------------
 #pragma endregion

@@ -56,6 +56,7 @@
 // ------------------------------------------------------
 #include "SDL_error.h"
 #include "SDL_keycode.h"
+#include "SDL_rect.h"
 #include "SDL_scancode.h"
 #include "SDL_timer.h"
 #pragma region SOFT_INCLUDES
@@ -154,18 +155,19 @@ struct {
 
     // CORE.Render: Renderer state
     struct {
-        PixelBuffer data;
         SDL_Renderer* renderer;
-        SDL_Texture* texture;
+        SDL_Texture* render_texture;
 
         iVec2 size;
 
-        bool vsync_enabled;
-
-        bool data_valid;
         bool renderer_valid;
-        bool texture_valid;
     } Render;
+
+    // CORE.PixelBuffer: Pixel buffer state
+    struct {
+        PixelBuffer pixel_buffer;
+        iVec2 size;
+    } PixelBuffer;
 
     // CORE.Input: Input state
     struct {
@@ -205,27 +207,33 @@ struct {
         
         u32 framerate;
     } Time;
+
+    // CORE.Resources: Resources
+    struct {
+        Image** image_ptrs;
+        u32 image_ptrs_count;
+    } Resources;
 } CORE;
 
 internal void softSetPixel(i32 x, i32 y, Pixel pixel) {
     // Check if the pixel buffer exists.
-    if(!CORE.Render.data_valid) {
+    if(!CORE.PixelBuffer.pixel_buffer) {
         softLogError("Pixel data not valid. Returning...");
         return;
     }
 
     // Simple boundary check.
-    if(x < 0 || x >= CORE.Window.screen_size.x || y < 0 || y >= CORE.Window.screen_size.y) { 
+    if(x < 0 || x >= CORE.PixelBuffer.size.x || y < 0 || y >= CORE.PixelBuffer.size.y) { 
         return; 
     }
 
     // Check if the pixel at position [x, y] equals the color given as a parameter.
     // If so, skip the rest of this function; repeating the same action for something that doesn't change is a resource-waste. 
-    if(softPixelColorCompare(pixel, softGetPixelColor(x, y))) { 
+    if(softPixelCompare(pixel, softGetPixelColor(x, y))) { 
         return; 
     }
 
-    if(CORE.Config.alpha_blend && !softPixelColorCompare(pixel, BLANK)) {
+    if(CORE.Config.alpha_blend && !softPixelCompare(pixel, BLANK)) {
         pixel = softMixPixels(
             softGetPixelColor(x, y),
             pixel, 
@@ -233,11 +241,11 @@ internal void softSetPixel(i32 x, i32 y, Pixel pixel) {
         );
     }
 
-    if(softPixelColorCompare(pixel, BLANK)) {
+    if(softPixelCompare(pixel, BLANK)) {
         pixel = softGetPixelColor(x, y);
     }
 
-    CORE.Render.data[y * CORE.Window.display_size.x + x] = pixel;
+    CORE.PixelBuffer.pixel_buffer[y * CORE.PixelBuffer.size.x + x] = pixel;
 }
 
 internal softKeyCode keycode_to_scancode[] = {
@@ -306,20 +314,20 @@ internal softKeyCode keycode_to_scancode[] = {
     KEY_COMMA,
     KEY_PERIOD,
     KEY_SLASH,
+    KEY_CAPS,
+    KEY_F1, 
+    KEY_F2, 
+    KEY_F3, 
+    KEY_F4, 
+    KEY_F5, 
+    KEY_F6, 
+    KEY_F7, 
+    KEY_F8, 
+    KEY_F9, 
+    KEY_F10, 
+    KEY_F11, 
+    KEY_F12, 
 
-    0, // SDL_SCANCODE_CAPSLOCK
-    0, // SDL_SCANCODE_F1
-    0, // SDL_SCANCODE_F2
-    0, // SDL_SCANCODE_F3
-    0, // SDL_SCANCODE_F4
-    0, // SDL_SCANCODE_F5
-    0, // SDL_SCANCODE_F6
-    0, // SDL_SCANCODE_F7
-    0, // SDL_SCANCODE_F8
-    0, // SDL_SCANCODE_F9
-    0, // SDL_SCANCODE_F10
-    0, // SDL_SCANCODE_F11
-    0, // SDL_SCANCODE_F12
     0, // SDL_SCANCODE_PRINTSCREEN
     0, // SDL_SCANCODE_SCROLLLOCK
     0, // SDL_SCANCODE_PAUSE
@@ -336,6 +344,143 @@ internal softKeyCode keycode_to_scancode[] = {
     KEY_LEFT, 
     KEY_DOWN, 
     KEY_UP, 
+
+    0, // SDL_SCANCODE_KP_DIVIDE
+    0, // SDL_SCANCODE_KP_MULTIPLY
+    0, // SDL_SCANCODE_KP_MINUS
+    0, // SDL_SCANCODE_KP_PLUS
+    0, // SDL_SCANCODE_KP_ENTER
+    0, // SDL_SCANCODE_KP_1
+    0, // SDL_SCANCODE_KP_2
+    0, // SDL_SCANCODE_KP_3
+    0, // SDL_SCANCODE_KP_4
+    0, // SDL_SCANCODE_KP_5
+    0, // SDL_SCANCODE_KP_6
+    0, // SDL_SCANCODE_KP_7
+    0, // SDL_SCANCODE_KP_8
+    0, // SDL_SCANCODE_KP_9
+    0, // SDL_SCANCODE_KP_0
+    0, // SDL_SCANCODE_KP_PERIOD
+    0, // SDL_SCANCODE_NONUSBACKSLASH 
+    0, // SDL_SCANCODE_POWER 
+    0, // SDL_SCANCODE_KP_EQUALS 
+    0, // SDL_SCANCODE_F13 
+    0, // SDL_SCANCODE_F14 
+    0, // SDL_SCANCODE_F15 
+    0, // SDL_SCANCODE_F16 
+    0, // SDL_SCANCODE_F17 
+    0, // SDL_SCANCODE_F18 
+    0, // SDL_SCANCODE_F19 
+    0, // SDL_SCANCODE_F20 
+    0, // SDL_SCANCODE_F21 
+    0, // SDL_SCANCODE_F22 
+    0, // SDL_SCANCODE_F23 
+    0, // SDL_SCANCODE_F24 
+    0, // SDL_SCANCODE_EXECUTE 
+    0, // SDL_SCANCODE_HELP 
+    0, // SDL_SCANCODE_MENU 
+    0, // SDL_SCANCODE_SELECT 
+    0, // SDL_SCANCODE_STOP 
+    0, // SDL_SCANCODE_AGAIN 
+    0, // SDL_SCANCODE_UNDO 
+    0, // SDL_SCANCODE_CUT 
+    0, // SDL_SCANCODE_COPY 
+    0, // SDL_SCANCODE_PASTE 
+    0, // SDL_SCANCODE_FIND 
+    0, // SDL_SCANCODE_MUTE 
+    0, // SDL_SCANCODE_VOLUMEUP 
+    0, // SDL_SCANCODE_VOLUMEDOWN 
+    0, // SDL_SCANCODE_KP_COMMA 
+    0, // SDL_SCANCODE_KP_EQUALSAS400 
+    0, // SDL_SCANCODE_INTERNATIONAL1 
+    0, // SDL_SCANCODE_INTERNATIONAL2 
+    0, // SDL_SCANCODE_INTERNATIONAL3 
+    0, // SDL_SCANCODE_INTERNATIONAL4 
+    0, // SDL_SCANCODE_INTERNATIONAL5 
+    0, // SDL_SCANCODE_INTERNATIONAL6 
+    0, // SDL_SCANCODE_INTERNATIONAL7 
+    0, // SDL_SCANCODE_INTERNATIONAL8 
+    0, // SDL_SCANCODE_INTERNATIONAL9 
+    0, // SDL_SCANCODE_LANG1 
+    0, // SDL_SCANCODE_LANG2 
+    0, // SDL_SCANCODE_LANG3 
+    0, // SDL_SCANCODE_LANG4 
+    0, // SDL_SCANCODE_LANG5 
+    0, // SDL_SCANCODE_LANG6 
+    0, // SDL_SCANCODE_LANG7 
+    0, // SDL_SCANCODE_LANG8 
+    0, // SDL_SCANCODE_LANG9 
+    0, // SDL_SCANCODE_ALTERASE 
+    0, // SDL_SCANCODE_SYSREQ 
+    0, // SDL_SCANCODE_CANCEL 
+    0, // SDL_SCANCODE_CLEAR 
+    0, // SDL_SCANCODE_PRIOR 
+    0, // SDL_SCANCODE_RETURN2 
+    0, // SDL_SCANCODE_SEPARATOR 
+    0, // SDL_SCANCODE_OUT 
+    0, // SDL_SCANCODE_OPER 
+    0, // SDL_SCANCODE_CLEARAGAIN 
+    0, // SDL_SCANCODE_CRSEL 
+    0, // SDL_SCANCODE_EXSEL 
+    0, // SDL_SCANCODE_KP_00 
+    0, // SDL_SCANCODE_KP_000 
+    0, // SDL_SCANCODE_THOUSANDSSEPARATOR 
+    0, // SDL_SCANCODE_DECIMALSEPARATOR 
+    0, // SDL_SCANCODE_CURRENCYUNIT 
+    0, // SDL_SCANCODE_CURRENCYSUBUNIT 
+    0, // SDL_SCANCODE_KP_LEFTPAREN 
+    0, // SDL_SCANCODE_KP_RIGHTPAREN 
+    0, // SDL_SCANCODE_KP_LEFTBRACE 
+    0, // SDL_SCANCODE_KP_RIGHTBRACE 
+    0, // SDL_SCANCODE_KP_TAB 
+    0, // SDL_SCANCODE_KP_BACKSPACE 
+    0, // SDL_SCANCODE_KP_A 
+    0, // SDL_SCANCODE_KP_B 
+    0, // SDL_SCANCODE_KP_C 
+    0, // SDL_SCANCODE_KP_D 
+    0, // SDL_SCANCODE_KP_E 
+    0, // SDL_SCANCODE_KP_F 
+    0, // SDL_SCANCODE_KP_XOR 
+    0, // SDL_SCANCODE_KP_POWER 
+    0, // SDL_SCANCODE_KP_PERCENT 
+    0, // SDL_SCANCODE_KP_LESS 
+    0, // SDL_SCANCODE_KP_GREATER 
+    0, // SDL_SCANCODE_KP_AMPERSAND 
+    0, // SDL_SCANCODE_KP_DBLAMPERSAND 
+    0, // SDL_SCANCODE_KP_VERTICALBAR 
+    0, // SDL_SCANCODE_KP_DBLVERTICALBAR 
+    0, // SDL_SCANCODE_KP_COLON 
+    0, // SDL_SCANCODE_KP_HASH 
+    0, // SDL_SCANCODE_KP_SPACE 
+    0, // SDL_SCANCODE_KP_AT 
+    0, // SDL_SCANCODE_KP_EXCLAM 
+    0, // SDL_SCANCODE_KP_MEMSTORE 
+    0, // SDL_SCANCODE_KP_MEMRECALL 
+    0, // SDL_SCANCODE_KP_MEMCLEAR 
+    0, // SDL_SCANCODE_KP_MEMADD 
+    0, // SDL_SCANCODE_KP_MEMSUBTRACT 
+    0, // SDL_SCANCODE_KP_MEMMULTIPLY 
+    0, // SDL_SCANCODE_KP_MEMDIVIDE 
+    0, // SDL_SCANCODE_KP_PLUSMINUS 
+    0, // SDL_SCANCODE_KP_CLEAR 
+    0, // SDL_SCANCODE_KP_CLEARENTRY 
+    0, // SDL_SCANCODE_KP_BINARY 
+    0, // SDL_SCANCODE_KP_OCTAL 
+    0, // SDL_SCANCODE_KP_DECIMAL 
+    0, // SDL_SCANCODE_KP_HEXADECIMAL 
+
+    KEY_LCTRL, 
+    KEY_LSHIFT, 
+    KEY_LALT, 
+
+    0, // SDL_SCANCODE_LGUI 
+
+    KEY_RCTRL,
+    KEY_RSHIFT,
+    KEY_RALT,
+    
+    0, // SDL_SCANCODE_RGUI
+    0, // SDL_SCANCODE_MODE
 };
 
 internal softKeyCode SDLScancodeToSoftKeyCode(SDL_Scancode code) {
@@ -374,8 +519,8 @@ internal void softTimeMenagement() {
 
 SAPI void softAlphaBlendState(bool state) {
     state ?
-        softLogInfo("Alpha-Blending: ENABLED (\"Alpha\" channle will be used during the color calculations).") :
-        softLogInfo("Alpha-Blending: DISABLED (\"Alpha\" channle will be immited during the color calculations).");
+        softLogInfo("softAlphaBlendState: Alpha-Blending: ENABLED (\"Alpha\" channle will be used during the color calculations).") :
+        softLogInfo("softAlphaBlendState: Alpha-Blending: DISABLED (\"Alpha\" channle will be immited during the color calculations).");
 
     CORE.Config.alpha_blend = state;
 }
@@ -392,25 +537,24 @@ SAPI i32 softInit(i32 width, i32 height, const string title) {
     softInitPlatform();
     softInitWindow(width, height, title);
     softInitRenderer();
-    softInitRenderTexture(softGetDisplaySize().x, softGetDisplaySize().y);
-    softInitPixelBuffer();
+    softInitDefaultPixelBuffer();
 
-    softLogInfo("Initialization process overview:");
+    softLogInfo("softInit: Initialization process overview:");
     softLogInfo("   > Window state: %s", CORE.Window.valid ? "OK" : "FAIL");
     softLogInfo("   > Renderer state: %s", CORE.Render.renderer_valid ? "OK" : "FAIL");
-    softLogInfo("   > Render Texture state: %s", CORE.Render.texture_valid ? "OK" : "FAIL");
-    softLogInfo("   > Pixel Data state: %s", CORE.Render.data_valid ? "OK" : "FAIL");
-    softLogInfo("Initialization finished. Hello World!");
+    softLogInfo("   > Render Texture state: %s", CORE.Render.render_texture ? "OK" : "FAIL");
+    softLogInfo("   > Pixel Data state: %s", CORE.PixelBuffer.pixel_buffer ? "OK" : "FAIL");
+    softLogInfo("softInit: Initialization finished. Hello World!");
 
     return SOFT_SUCCESS;
 }
 
 SAPI i32 softInitPlatform(void) {
-    softLogInfo("Initializing Soft v.%s", SOFT_VERSION);
+    softLogInfo("softInitPlatform: Initializing Soft v.%s", SOFT_VERSION);
     i32 init = SDL_Init(SDL_INIT_VIDEO);
 
     if(init != 0) {
-        softLogError("%s", strerror(errno));
+        softLogError("softInitPlatform: %s", SDL_GetError());
         
         return SOFT_FAILED;
     }
@@ -430,7 +574,7 @@ SAPI i32 softInitPlatform(void) {
 }
 
 SAPI i32 softInitWindow(i32 width, i32 height, const string title) {
-    softLogInfo("Initializing Window.");
+    softLogInfo("softInitWindow: Initializing Window.");
 
     CORE.Window.screen_size = (iVec2) { width, height };
 
@@ -444,8 +588,6 @@ SAPI i32 softInitWindow(i32 width, i32 height, const string title) {
     CORE.Input.Mouse.scale = (iVec2) { 1, 1 };
 
     CORE.Input.Keyboard.exit_key = KEY_ESCAPE;
-
-    // TODO(yakub): Fix the Config Flag system
 
     u32 flags = 0;
     if(CORE.Window.config_flags & FLAG_WINDOW_RESIZABLE) flags |= SDL_WINDOW_RESIZABLE;
@@ -464,7 +606,7 @@ SAPI i32 softInitWindow(i32 width, i32 height, const string title) {
     );
 
     if(!CORE.Window.window) {
-        softLogError("%s", strerror(errno));
+        softLogError("softInitWindow: %s", SDL_GetError());
 
         softClosePlatform();
         
@@ -480,10 +622,10 @@ SAPI i32 softInitWindow(i32 width, i32 height, const string title) {
 }
 
 SAPI i32 softInitRenderer(void) {
-    softLogInfo("Initializing Renderer.");
+    softLogInfo("softInitRenderer: Initializing Renderer.");
 
     if(!CORE.Window.window) {
-        softLogError("%s", SDL_GetError());
+        softLogError("softInitRenderer: Renderer requires a valid Window instance. Returning...");
 
         softClosePlatform();
 
@@ -495,11 +637,7 @@ SAPI i32 softInitRenderer(void) {
 
     if(CORE.Window.config_flags & FLAG_WINDOW_VSYNC) {
         flags |= SDL_RENDERER_PRESENTVSYNC;
-        CORE.Render.vsync_enabled = true;
-    } else {
-        CORE.Render.vsync_enabled = false;
-    }
-        
+    }        
 
     CORE.Render.renderer = SDL_CreateRenderer(
         CORE.Window.window, 
@@ -508,99 +646,48 @@ SAPI i32 softInitRenderer(void) {
     );
 
     if(!CORE.Render.renderer) {
-        softLogError("%s", SDL_GetError());
+        softLogError("softInitRenderer: %s", SDL_GetError());
 
         softCloseWindow();
         softClosePlatform();
         
         return SOFT_FAILED;
     }
+
+    softLogInfo("softInitRenderer: Initializing Render Texture.");
+
+    CORE.Render.render_texture = SDL_CreateTexture(
+        CORE.Render.renderer, 
+        SDL_PIXELFORMAT_ABGR8888, 
+        SDL_TEXTUREACCESS_STREAMING, 
+        CORE.Window.display_size.x, 
+        CORE.Window.display_size.y
+    );
+
+    if(!CORE.Render.render_texture) {
+        softLogError("softInitRenderer: %s", SDL_GetError());
+
+        softCloseWindow();
+        softCloseRenderer();
+        softClosePlatform();
+        
+        return SOFT_FAILED;
+    }
+
+    softLogInfo("   > RenderTexture size: %ix%i", CORE.Window.display_size.x, CORE.Window.display_size.y);
+
+    CORE.Render.size.x = CORE.Window.display_size.x;
+    CORE.Render.size.y = CORE.Window.display_size.y;
 
     CORE.Render.renderer_valid = true;
 
     return SOFT_SUCCESS;
 }
 
-SAPI i32 softInitRenderTexture(i32 width, i32 height) {
-    softLogInfo("Initializing RenderTexture.");
-
-    if(!CORE.Window.window || !CORE.Render.renderer) {
-        softLogError("%s", SDL_GetError());
-
-        softCloseWindow();
-        softCloseRenderer();
-        softClosePlatform();
-        
-        return SOFT_FAILED;
-    }
-
-    CORE.Render.size.x = width;
-    CORE.Render.size.y = height;
-
-    CORE.Render.texture = SDL_CreateTexture(
-        CORE.Render.renderer, 
-        SDL_PIXELFORMAT_ABGR8888, 
-        SDL_TEXTUREACCESS_STREAMING, 
-        width, 
-        height
-    );
-
-    if(!CORE.Render.texture) {
-        softLogError("%s", SDL_GetError());
-
-        softCloseWindow();
-        softCloseRenderer();
-        softClosePlatform();
-        
-        return SOFT_FAILED;
-    }
-
-    CORE.Render.texture_valid = true;
-
-    softLogInfo("   > RenderTexture size: %ix%i", CORE.Window.display_size.x, CORE.Window.display_size.y);
-
-    return SOFT_SUCCESS;
-}
-
-SAPI i32 softInitPixelBuffer(void) {
-    softLogInfo("Initializing Pixel Buffer.");
-
-    if(!CORE.Window.window || !CORE.Render.renderer || !CORE.Render.texture) {
-        softLogError("%s", strerror(errno));
-
-        softCloseWindow();
-        softCloseRenderer();
-        softUnloadRenderTexture();
-        softClosePlatform();
-        
-        return SOFT_FAILED;
-    }
-
-    CORE.Render.data = calloc(CORE.Window.display_size.x * CORE.Window.display_size.y, sizeof(Pixel));
-
-    if(!CORE.Render.data) {
-        softLogError("%s", strerror(errno));
-
-        softCloseWindow();
-        softCloseRenderer();
-        softUnloadRenderTexture();
-        softClosePlatform();
-        
-        return SOFT_FAILED;
-    }
-
-    CORE.Render.data_valid = true;
-
-    softLogInfo("   > Pixel count: %i (%i bytes)", CORE.Window.display_size.x * CORE.Window.display_size.y, CORE.Window.display_size.x * CORE.Window.display_size.y * sizeof(Pixel));
-
-    return SOFT_SUCCESS;
-}
-
 SAPI void softClose(void) {
-    softLogInfo("Closing Soft v.%s", SOFT_VERSION);
+    softLogInfo("softClose: Closing Soft v.%s", SOFT_VERSION);
 
     softUnloadPixelBuffer();
-    softUnloadRenderTexture();
     softCloseRenderer();
     softCloseWindow();
     softClosePlatform();
@@ -609,18 +696,18 @@ SAPI void softClose(void) {
 SAPI void softClosePlatform(void) {
     SDL_Quit();
 
-    softLogInfo("Quitting. Goodbye World...");
+    softLogInfo("softClosePlatform: Quitting. Goodbye World...");
     CORE.Platform.valid = false;
 }
 
 SAPI void softCloseWindow(void) {
     if(!CORE.Window.window) {
-        softLogWarning("Window already closed. Returning...");
+        softLogWarning("softCloseWindow: Window already closed. Returning...");
 
         return;
     }
 
-    softLogInfo("Closing window.");
+    softLogInfo("softCloseWindow: Closing window.");
 
     SDL_DestroyWindow(CORE.Window.window);
     CORE.Window.valid = false;
@@ -628,41 +715,99 @@ SAPI void softCloseWindow(void) {
 
 SAPI void softCloseRenderer(void) {
     if(!CORE.Render.renderer) {
-        softLogWarning("Renderer already closed. Returning...");
+        softLogWarning("softCloseRenderer: Renderer already closed. Returning...");
 
         return;
     }
 
-    softLogInfo("Unloading renderer.");
+    softLogInfo("softCloseRenderer: Unloading renderer.");
 
     SDL_DestroyRenderer(CORE.Render.renderer);
     CORE.Render.renderer_valid = false;
-}
 
-SAPI void softUnloadRenderTexture(void) {
-    if(!CORE.Render.texture) {
-        softLogWarning("Render Texture already unloaded. Returning...");
+    if(!CORE.Render.render_texture) {
+        softLogWarning("softCloseRenderer: Render Texture already unloaded. Returning...");
 
         return;
     }
 
-    softLogInfo("Unloading render texture.");
+    softLogInfo("softCloseRenderer: Unloading render texture.");
 
-    SDL_DestroyTexture(CORE.Render.texture);
-    CORE.Render.texture_valid = false;
+    SDL_DestroyTexture(CORE.Render.render_texture);
+
 }
+
+SAPI i32 softInitDefaultPixelBuffer(void) {
+    softLogInfo("softInitDefaultPixelBuffer: Initializing Pixel Buffer.");
+
+    if(!CORE.Window.window || !CORE.Render.renderer || !CORE.Render.render_texture) {
+        softLogError("softInitDefaultPixelBuffer: %s", strerror(errno));
+
+        softCloseWindow();
+        softCloseRenderer();
+        softClosePlatform();
+        
+        return SOFT_FAILED;
+    }
+
+    CORE.PixelBuffer.size = (iVec2) { CORE.Window.display_size.x, CORE.Window.display_size.y };
+    CORE.PixelBuffer.pixel_buffer = (PixelBuffer)calloc(CORE.PixelBuffer.size.x * CORE.PixelBuffer.size.y, sizeof(Pixel));
+
+    if(!CORE.PixelBuffer.pixel_buffer) {
+        softLogError("softInitDefaultPixelBuffer: %s", strerror(errno));
+
+        softCloseWindow();
+        softCloseRenderer();
+        softClosePlatform();
+        
+        return SOFT_FAILED;
+    }
+
+    softLogInfo("   > Pixel count: %i (%i bytes)", CORE.PixelBuffer.size.x * CORE.PixelBuffer.size.y, CORE.PixelBuffer.size.x * CORE.PixelBuffer.size.y * sizeof(Pixel));
+
+    return SOFT_SUCCESS;
+}
+
 
 SAPI void softUnloadPixelBuffer(void) {
-    if(!CORE.Render.data) {
-        softLogWarning("Pixel Buffer already unloaded. Returning...");
+    if(!CORE.PixelBuffer.pixel_buffer) {
+        softLogWarning("softUnloadPixelBuffer: Pixel Buffer already unloaded. Returning...");
 
         return;
     }
 
-    softLogInfo("Unloading Pixel Buffer.");
+    softLogInfo("softUnloadPixelBuffer: Unloading Pixel Buffer.");
 
-    SDL_free(CORE.Render.data);
-    CORE.Render.data_valid = false;
+    free(CORE.PixelBuffer.pixel_buffer);
+}
+
+SAPI PixelBuffer softCreatePixelBuffer(i32 width, i32 height) {
+    softLogInfo("softCreatePixelBuffer: Creating a new pixel buffer (%ix%ipx)", width, height);
+    CORE.PixelBuffer.size = (iVec2) { width, height };
+    return (PixelBuffer)calloc(width * height, sizeof(Pixel));
+}
+
+SAPI i32 softSetCurrentPixelBuffer(PixelBuffer pixel_buffer) {
+    if(pixel_buffer == NULL) {
+        softLogError("softCreatePixelBuffer: Invalid new pixel buffer object. Returning...");
+
+        return SOFT_FAILED;
+    }
+
+    if(CORE.PixelBuffer.pixel_buffer != NULL) {
+        softLogInfo("softCreatePixelBuffer: Unloading previous pixel buffer.");
+        free(CORE.PixelBuffer.pixel_buffer);
+    }
+
+    CORE.PixelBuffer.pixel_buffer = pixel_buffer;
+    
+    if(CORE.PixelBuffer.pixel_buffer == NULL) {
+        softLogError("softCreatePixelBuffer: Failed to set the current pixel buffer. Returning...");
+        return SOFT_FAILED;
+    }
+    
+    softLogInfo("softCreatePixelBuffer: Current pixel buffer set successfully.");
+    return SOFT_SUCCESS;
 }
 
 SAPI bool softWindowShoulClose(void) {
@@ -915,45 +1060,50 @@ SAPI bool softMouseButtonUp(softMouseButtons button) {
 
 
 SAPI void softClearBuffer(void) {
-    if(!CORE.Render.data_valid) {
-        softLogError("Pixel data not valid. Returning...");
+    if(!CORE.PixelBuffer.pixel_buffer) {
+        softLogError("softClearBuffer: Pixel buffer not valid. Returning...");
         return;
     }
 
-    SDL_memset(CORE.Render.data, 0, CORE.Window.display_size.x * CORE.Window.display_size.y * sizeof(Pixel));
+    SDL_memset(CORE.PixelBuffer.pixel_buffer, 0, CORE.Window.display_size.x * CORE.Window.display_size.y * sizeof(Pixel));
 }
 
 SAPI void softClearBufferColor(Pixel pixel) {
-    if(!CORE.Render.data_valid) {
-        softLogError("Pixel data not valid. Returning...");
+    if(!CORE.PixelBuffer.pixel_buffer) {
+        softLogError("softClearBufferColor: Pixel buffer not valid. Returning...");
         return;
     }
 
-    for(i32 y = 0; y < CORE.Window.screen_size.y; y++) {
-        for(i32 x = 0; x < CORE.Window.screen_size.x; x++) {
+    iVec2 clear_region = {
+        ((CORE.Window.display_size.x - (CORE.Window.display_size.x - CORE.Window.screen_size.x))) - (CORE.Window.screen_size.x - CORE.PixelBuffer.size.x),
+        ((CORE.Window.display_size.y - (CORE.Window.display_size.y - CORE.Window.screen_size.y))) - (CORE.Window.screen_size.y - CORE.PixelBuffer.size.y)
+    };
+
+    for(i32 y = 0; y < clear_region.y; y++) {
+        for(i32 x = 0; x < clear_region.x; x++) {
             softSetPixel(x, y, pixel);
         }
     }
 }
 
 SAPI void softBlit(void) {
-    if(!CORE.Render.data_valid) {
-        softLogError("Pixel data not valid. Returning...");
+    if(!CORE.PixelBuffer.pixel_buffer) {
+        softLogError("softBlit: Pixel data not valid. Returning...");
         return;
-    } else if(!CORE.Render.texture_valid) {
-        softLogError("Render Texture not valid. Returning...");
+    } else if(!CORE.Render.render_texture) {
+        softLogError("softBlit: Render Texture not valid. Returning...");
         return;
     } else if(!CORE.Render.renderer_valid) {
-        softLogError("Renderer not valid. Returning...");
+        softLogError("softBlit: Renderer not valid. Returning...");
         return;
     }
 
-    SDL_UpdateTexture(
-        CORE.Render.texture,
-        NULL,
-        CORE.Render.data, 
-        CORE.Window.display_size.x * sizeof(Pixel)
-    );
+    SDL_Rect source_rect = {
+        0,
+        0,
+        CORE.PixelBuffer.size.x,
+        CORE.PixelBuffer.size.y
+    };
 
     SDL_Rect destination_rect = {
         0,
@@ -962,10 +1112,17 @@ SAPI void softBlit(void) {
         CORE.Window.display_size.y
     };
 
+    SDL_UpdateTexture(
+        CORE.Render.render_texture,
+        &source_rect,
+        CORE.PixelBuffer.pixel_buffer, 
+        CORE.PixelBuffer.size.x * sizeof(Pixel)
+    );
+
     SDL_RenderCopyEx(
         CORE.Render.renderer, 
-        CORE.Render.texture, 
-        NULL, 
+        CORE.Render.render_texture, 
+        &source_rect, 
         &destination_rect,
         0.0,
         NULL,
@@ -1007,7 +1164,7 @@ SAPI void softDrawRectangleLines(Rect rect, Pixel pixel) {
     }
 }
 
-SAPI void softDrawRectangleExtanded(Rect rect, iVec2 pivot, Pixel pixel) {
+SAPI void softDrawRectangleEx(Rect rect, iVec2 pivot, Pixel pixel) {
     softDrawRectangle(
         (Rect) {
             (iVec2) {
@@ -1047,6 +1204,33 @@ SAPI void softDrawLine(Line line, Pixel pixel) {
         x += dx;
         y += dy;
         i++;
+    }
+}
+
+SAPI void softDrawLineBezier(iVec2 start, iVec2 end, iVec2 midpoint, i32 resolution, Pixel pixel) {
+    // Source: https://youtu.be/SO83KQuuZvg?t=642
+
+    iVec2 curve_point_prev = start;
+
+    for(i32 i = 0; i < resolution; i++) {
+        f32 t = (i + 1.0f) / resolution;
+
+        iVec2 curve_point_next = softVectorLerp(
+            softVectorLerp(
+                start, 
+                midpoint, 
+                t
+            ), 
+            softVectorLerp(
+                midpoint, 
+                end, 
+                t
+            ), 
+            t
+        );
+
+        softDrawLine((Line) { curve_point_prev, curve_point_next }, pixel);
+        curve_point_prev = curve_point_next;
     }
 }
 
@@ -1098,10 +1282,10 @@ SAPI void softDrawCircleLines(Circle circle, Pixel pixel) {
 }
 
 SAPI void softDrawImage(Image* image, iVec2 position, Pixel tint) {
-    softDrawImageExtanded(image, position, softVectorZero(), FLIP_DEFAULT, tint);
+    softDrawImageEx(image, position, softVectorZero(), FLIP_DEFAULT, tint);
 }
 
-SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, SoftImageFlip image_flip, Pixel tint) {
+SAPI void softDrawImageEx(Image* image, iVec2 position, iVec2 pivot, SoftImageFlip image_flip, Pixel tint) {
     switch (image_flip) {
         case FLIP_DEFAULT: {
             for(i32 y = 0; y < image->size.y; y++) {
@@ -1194,7 +1378,6 @@ SAPI void softDrawImageExtanded(Image* image, iVec2 position, iVec2 pivot, SoftI
 
             break;
         }
-
     }
 }
 
@@ -1317,11 +1500,11 @@ SAPI const i32 softTextLength(const string restrict txt) {
 // ------------------------------------------------------
 
 SAPI Pixel softGetPixelColor(i32 x, i32 y) {
-    if(x < 0 || x >= CORE.Window.screen_size.x || y < 0 || y >= CORE.Window.screen_size.y) {
+    if(x < 0 || x >= CORE.PixelBuffer.size.x || y < 0 || y >= CORE.PixelBuffer.size.y) {
         return BLACK;
     }
 
-    return CORE.Render.data[y * CORE.Window.display_size.x + x];
+    return CORE.PixelBuffer.pixel_buffer[y * CORE.PixelBuffer.size.x + x];
 }
 
 SAPI Pixel softGetPixelFromBuffer(PixelBuffer buffer, iVec2 position, iVec2 size) {
@@ -1380,18 +1563,6 @@ SAPI Color softPixelToColor(Pixel pixel) {
     result.a = (pixel >> 8 * 3) & 0xFF;
 
     return result;
-}
-
-SAPI bool softColorCompare(Color a, Color b) {
-    return 
-        (a.r == b.r) &&
-        (a.g == b.g) &&
-        (a.b == b.b) &&
-        (a.a == b.a);
-}
-
-SAPI bool softPixelColorCompare(Pixel a, Pixel b) {
-    return a == b;
 }
 
 SAPI Color softMixColor(Color base_color, Color return_color, u8 alpha) {
@@ -1482,7 +1653,7 @@ SAPI void softTargetFPS(u32 framerate) {
     CORE.Time.framerate = framerate;
     CORE.Time.frame_target = 1.0f / framerate;
 
-    softLogInfo("Framerate: %iFPS (%0.04fms)", CORE.Time.framerate, CORE.Time.frame_target);
+    softLogInfo("softTargetFPS: Framerate: %iFPS (%0.04fms)", CORE.Time.framerate, CORE.Time.frame_target);
 }
 
 SAPI void softWait(f32 seconds) {
@@ -1614,6 +1785,10 @@ SAPI iVec2 softVectorLerp(iVec2 start, iVec2 end, f32 t) {
     };
 }
 
+SAPI bool softVectorCompare(iVec2 a, iVec2 b) {
+    return a.x == b.x && a.y == b.y;
+}
+
 SAPI Color softColorZero(void) {
     return (Color) { 0, 0, 0, 0 };
 }
@@ -1667,6 +1842,19 @@ SAPI Color softColorLerp(Color start, Color end, f32 t) {
     };
 }
 
+SAPI bool softColorCompare(Color a, Color b) {
+    return 
+        (a.r == b.r) &&
+        (a.g == b.g) &&
+        (a.b == b.b) &&
+        (a.a == b.a);
+}
+
+SAPI bool softPixelCompare(Pixel a, Pixel b) {
+    return a == b;
+}
+
+
 // ------------------------------------------------------
 #pragma endregion
 // ------------------------------------------------------
@@ -1705,7 +1893,7 @@ SAPI Image softLoadImage(const string path) {
 
     stbi_image_free(data);
 
-    softLogInfo("Image loaded successfully:");
+    softLogInfo("softLoadImage: Image loaded successfully:");
     softLogInfo("   > resolution: %ix%ipx", result.size.x, result.size.y);
     softLogInfo("   > channels: %i", result.channels);
     softLogInfo("   > size: %i bytes", result.size.x * result.size.y * sizeof(Pixel));
@@ -1714,13 +1902,46 @@ SAPI Image softLoadImage(const string path) {
 }
 
 SAPI void softUnloadImage(Image* image) {
-    if(!image->data) {
-        softLogWarning("Trying to unload invalid image data.");
+    if(image->data == NULL) {
+        softLogWarning("softUnloadImage: Trying to unload invalid image data.");
         return;
     }
 
     free(image->data);
-    softLogInfo("Image unloaded successfully.");
+    softLogInfo("softUnloadImage: Image unloaded successfully.");
+}
+
+// ------------------------------------------------------
+#pragma endregion
+// ------------------------------------------------------
+
+// ------------------------------------------------------
+#pragma region SOFT_API_FUNC_RESOURCES
+// ------------------------------------------------------
+
+SAPI void softLoadResourceImage(Image* image) {
+    if(CORE.Resources.image_ptrs == NULL) {
+        softLogInfo("softLoadResourceImage: Initializing the global Image Container.");
+        CORE.Resources.image_ptrs = (Image**)calloc(1, sizeof(Image));
+        CORE.Resources.image_ptrs_count = 1;
+    } else {
+        CORE.Resources.image_ptrs = (Image**)realloc(CORE.Resources.image_ptrs, (CORE.Resources.image_ptrs_count + 1) * sizeof(Image));
+        CORE.Resources.image_ptrs_count++;
+    }
+
+    CORE.Resources.image_ptrs[CORE.Resources.image_ptrs_count - 1] = image;
+    softLogInfo("softLoadResourceImage: New image stored in the global Image Container: %p", image);
+}
+
+SAPI void softUnloadResources(void) {
+    for(int res_index = 0; res_index < CORE.Resources.image_ptrs_count; res_index++) {
+        if(CORE.Resources.image_ptrs != NULL && CORE.Resources.image_ptrs[res_index]->data != NULL) {
+            softLogInfo("softUnloadResources: Unloading image: %p", CORE.Resources.image_ptrs[res_index]);
+            softUnloadImage(CORE.Resources.image_ptrs[res_index]);
+        }
+    }
+
+    free(CORE.Resources.image_ptrs);
 }
 
 // ------------------------------------------------------

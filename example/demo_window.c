@@ -5,13 +5,11 @@ int main(int argc, char** argv) {
 
     while(!softWindowShoulClose()) {
         softClearBufferColor(WHITE);
+        softDrawCircle((Circle) { softGetWindowCenter(), 100 }, RED);
 
-        softDrawRectangle((Rect) { softVectorSub(softGetWindowCenter(), (iVec2) { 64, 64 }), { 128, 128 } }, RED);
-        
         softBlit();
     }
 
-    softUnloadResources();
     softClose();
 
     return 0;
